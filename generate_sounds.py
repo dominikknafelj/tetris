@@ -322,9 +322,9 @@ def create_background_music():
     samples = []
     bass_samples = []
     
-    # Generate melody with attack and release
+    # Generate melody with attack and release (reduced volume from 0.3 to 0.15)
     for freq, duration in melody:
-        note_samples = generate_square_wave(freq, duration, 0.3)
+        note_samples = generate_square_wave(freq, duration, 0.15)
         # Add attack
         attack_samples = int(0.02 * sample_rate)  # 20ms attack
         for i in range(min(attack_samples, len(note_samples))):
@@ -335,9 +335,9 @@ def create_background_music():
             note_samples[-(i+1)] *= (i / release_samples)
         samples.extend(note_samples)
     
-    # Generate bass with longer attack and release
+    # Generate bass with longer attack and release (reduced volume from 0.2 to 0.1)
     for freq, duration in bass:
-        note_samples = generate_square_wave(freq, duration, 0.2)
+        note_samples = generate_square_wave(freq, duration, 0.1)
         # Add attack
         attack_samples = int(0.03 * sample_rate)  # 30ms attack
         for i in range(min(attack_samples, len(note_samples))):
@@ -356,10 +356,10 @@ def create_background_music():
     # Mix melody and bass
     mixed_samples = [samples[i] + bass_samples[i] for i in range(max_length)]
     
-    # Normalize
+    # Normalize with a lower target amplitude (reduced from 0.95 to 0.7)
     max_amplitude = max(abs(min(mixed_samples)), abs(max(mixed_samples)))
     if max_amplitude > 0:
-        scale_factor = 0.95 / max_amplitude
+        scale_factor = 0.7 / max_amplitude
         mixed_samples = [s * scale_factor for s in mixed_samples]
     
     # Loop the sequence 2 times (it's twice as long now)

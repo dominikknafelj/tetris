@@ -12,11 +12,11 @@ use ggez::{
 use tetromino::Tetromino;
 
 // Game constants
-const GRID_SIZE: f32 = 30.0;      // Size of each grid cell in pixels
+const GRID_SIZE: f32 = 60.0;      // Size of each grid cell in pixels (doubled from 30.0)
 const GRID_WIDTH: i32 = 10;       // Width of the game board in cells
 const GRID_HEIGHT: i32 = 20;      // Height of the game board in cells
-const MARGIN: f32 = 20.0;         // Margin between game field and window borders
-const BORDER_WIDTH: f32 = 2.0;    // Width of the game field border
+const MARGIN: f32 = 40.0;         // Margin between game field and window borders (doubled from 20.0)
+const BORDER_WIDTH: f32 = 4.0;    // Width of the game field border (doubled from 2.0)
 const PREVIEW_BOX_SIZE: f32 = 6.0;  // Size of the preview box in grid cells
 const SCREEN_WIDTH: f32 = GRID_SIZE * (GRID_WIDTH as f32 + PREVIEW_BOX_SIZE + 3.0) + 2.0 * MARGIN;   // Total screen width including preview and margins
 const SCREEN_HEIGHT: f32 = GRID_SIZE * GRID_HEIGHT as f32 + 2.0 * MARGIN; // Total screen height including margins
@@ -32,6 +32,8 @@ struct GameSounds {
     clear_sound: audio::Source,
     tetris_sound: audio::Source,
     game_over_sound: audio::Source,
+    background_music: audio::Source,
+    background_playing: bool,
 }
 
 impl GameSounds {
@@ -44,6 +46,8 @@ impl GameSounds {
             clear_sound: audio::Source::new(ctx, "/sounds/clear.wav")?,
             tetris_sound: audio::Source::new(ctx, "/sounds/tetris.wav")?,
             game_over_sound: audio::Source::new(ctx, "/sounds/game_over.wav")?,
+            background_music: audio::Source::new(ctx, "/sounds/background.wav")?,
+            background_playing: false,
         })
     }
 
@@ -71,6 +75,19 @@ impl GameSounds {
     fn play_game_over(&mut self, ctx: &mut Context) -> GameResult {
         self.game_over_sound.play_detached(ctx)
     }
+
+    fn start_background_music(&mut self, ctx: &mut Context) -> GameResult {
+        if !self.background_playing {
+            self.background_music.set_repeat(true);
+            self.background_music.play_detached(ctx)?;
+            self.background_playing = true;
+        }
+        Ok(())
+    }
+
+    fn stop_background_music(&mut self) {
+        self.background_playing = false;
+    }
 }
 
 /// Main game state that holds all the game data
@@ -86,14 +103,17 @@ struct GameState {
 impl GameState {
     /// Creates a new game state with an empty board and a random starting piece
     fn new(ctx: &mut Context) -> GameResult<Self> {
-        Ok(Self {
+        let sounds = GameSounds::new(ctx)?;
+        let mut state = Self {
             board: vec![vec![Color::BLACK; GRID_WIDTH as usize]; GRID_HEIGHT as usize],
             current_piece: Some(Tetromino::random()),
             next_piece: Tetromino::random(),
             game_over: false,
             drop_timer: 0.0,
-            sounds: GameSounds::new(ctx)?,
-        })
+            sounds,
+        };
+        state.sounds.start_background_music(ctx)?;
+        Ok(state)
     }
 
     /// Spawns a new piece at the top of the board
@@ -375,6 +395,11 @@ impl event::EventHandler<ggez::GameError> for GameState {
                     self.current_piece = Some(new_piece);
                 }
             }
+        }
+
+        if self.game_over {
+            self.sounds.stop_background_music();
+            self.sounds.play_game_over(ctx)?;
         }
 
         Ok(())
