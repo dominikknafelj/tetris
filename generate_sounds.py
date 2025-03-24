@@ -4,7 +4,7 @@ import math
 import os
 import numpy as np
 
-def generate_square_wave(frequency, duration, amplitude=0.5, sample_rate=32768):
+def generate_square_wave(frequency, duration, amplitude=0.5, sample_rate=44100):
     """Generate a square wave with the given frequency and duration."""
     num_samples = int(duration * sample_rate)
     samples = []
@@ -127,18 +127,257 @@ def create_tetris_sound():
     
     return samples
 
+def create_background_music():
+    """Creates the Yorcksche Marsch background music directly from the score"""
+    sample_rate = 44100
+    tempo = 192  # Quarter notes per minute
+    quarter_duration = 60.0 / tempo  # Duration of a quarter note in seconds
+    
+    # Define note frequencies (A4 = 440Hz as reference)
+    def note_freq(semitones_from_a4):
+        return 440 * (2 ** (semitones_from_a4 / 12.0))
+    
+    # Full melody (Piano RH) - First section
+    melody = [
+        # First measure (after the rest)
+        (note_freq(2), quarter_duration * 0.75),  # B4 dotted eighth
+        (note_freq(4), quarter_duration * 0.25),  # C#5 sixteenth
+        (note_freq(5), quarter_duration * 0.5),   # D5 eighth
+        (note_freq(7), quarter_duration * 0.5),   # E5 eighth
+        (note_freq(9), quarter_duration * 0.5),   # F#5 eighth
+        (note_freq(7), quarter_duration * 0.5),   # E5 eighth
+        
+        # Second measure
+        (note_freq(5), quarter_duration * 0.75),  # D5 dotted eighth
+        (note_freq(7), quarter_duration * 0.25),  # E5 sixteenth
+        (note_freq(9), quarter_duration * 0.5),   # F#5 eighth
+        (note_freq(11), quarter_duration * 0.5),  # G#5 eighth
+        (note_freq(12), quarter_duration * 0.5),  # A5 eighth
+        (note_freq(11), quarter_duration * 0.5),  # G#5 eighth
+        
+        # Third measure
+        (note_freq(9), quarter_duration * 0.75),  # F#5 dotted eighth
+        (note_freq(7), quarter_duration * 0.25),  # E5 sixteenth
+        (note_freq(5), quarter_duration * 0.5),   # D5 eighth
+        (note_freq(4), quarter_duration * 0.5),   # C#5 eighth
+        (note_freq(2), quarter_duration * 0.5),   # B4 eighth
+        (note_freq(0), quarter_duration * 0.5),   # A4 eighth
+
+        # Fourth measure (repeat of first)
+        (note_freq(2), quarter_duration * 0.75),  # B4 dotted eighth
+        (note_freq(4), quarter_duration * 0.25),  # C#5 sixteenth
+        (note_freq(5), quarter_duration * 0.5),   # D5 eighth
+        (note_freq(7), quarter_duration * 0.5),   # E5 eighth
+        (note_freq(9), quarter_duration * 0.5),   # F#5 eighth
+        (note_freq(7), quarter_duration * 0.5),   # E5 eighth
+
+        # Fifth measure (similar to second)
+        (note_freq(5), quarter_duration * 0.75),  # D5 dotted eighth
+        (note_freq(7), quarter_duration * 0.25),  # E5 sixteenth
+        (note_freq(9), quarter_duration * 0.5),   # F#5 eighth
+        (note_freq(11), quarter_duration * 0.5),  # G#5 eighth
+        (note_freq(12), quarter_duration * 0.5),  # A5 eighth
+        (note_freq(11), quarter_duration * 0.5),  # G#5 eighth
+
+        # Sixth measure
+        (note_freq(9), quarter_duration),         # F#5 quarter
+        (note_freq(14), quarter_duration),        # B5 quarter
+        (note_freq(14), quarter_duration),        # B5 quarter
+
+        # Seventh measure
+        (note_freq(14), quarter_duration),        # B5 quarter
+        (note_freq(12), quarter_duration * 0.5),  # A5 eighth
+        (note_freq(11), quarter_duration * 0.5),  # G#5 eighth
+        (note_freq(9), quarter_duration),         # F#5 quarter
+
+        # Eighth measure
+        (note_freq(7), quarter_duration),         # E5 quarter
+        (note_freq(14), quarter_duration),        # B5 quarter
+        (note_freq(14), quarter_duration),        # B5 quarter
+
+        # Ninth measure - New section
+        (note_freq(14), quarter_duration),        # B5 quarter
+        (note_freq(12), quarter_duration * 0.5),  # A5 eighth
+        (note_freq(11), quarter_duration * 0.5),  # G#5 eighth
+        (note_freq(9), quarter_duration),         # F#5 quarter
+
+        # Tenth measure
+        (note_freq(7), quarter_duration),         # E5 quarter
+        (note_freq(9), quarter_duration),         # F#5 quarter
+        (note_freq(11), quarter_duration),        # G#5 quarter
+
+        # Eleventh measure
+        (note_freq(12), quarter_duration),        # A5 quarter
+        (note_freq(14), quarter_duration),        # B5 quarter
+        (note_freq(16), quarter_duration),        # C#6 quarter
+
+        # Twelfth measure
+        (note_freq(14), quarter_duration * 1.5),  # B5 dotted quarter
+        (note_freq(12), quarter_duration * 0.5),  # A5 eighth
+        (note_freq(11), quarter_duration),        # G#5 quarter
+
+        # Thirteenth measure
+        (note_freq(9), quarter_duration),         # F#5 quarter
+        (note_freq(11), quarter_duration),        # G#5 quarter
+        (note_freq(12), quarter_duration),        # A5 quarter
+
+        # Fourteenth measure
+        (note_freq(14), quarter_duration),        # B5 quarter
+        (note_freq(16), quarter_duration),        # C#6 quarter
+        (note_freq(17), quarter_duration),        # D6 quarter
+
+        # Fifteenth measure
+        (note_freq(16), quarter_duration * 1.5),  # C#6 dotted quarter
+        (note_freq(14), quarter_duration * 0.5),  # B5 eighth
+        (note_freq(12), quarter_duration),        # A5 quarter
+
+        # Sixteenth measure
+        (note_freq(14), quarter_duration * 2),    # B5 half note
+        (note_freq(14), quarter_duration),        # B5 quarter
+    ]
+    
+    # Bass line (Piano LH) - Extended
+    bass = [
+        # First measure
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        
+        # Second measure
+        (note_freq(-5), quarter_duration),   # D4 quarter
+        (note_freq(-5), quarter_duration),   # D4 quarter
+        (note_freq(-5), quarter_duration),   # D4 quarter
+        
+        # Third measure
+        (note_freq(-7), quarter_duration),   # C#4 quarter
+        (note_freq(-7), quarter_duration),   # C#4 quarter
+        (note_freq(-7), quarter_duration),   # C#4 quarter
+
+        # Fourth measure
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+
+        # Fifth measure
+        (note_freq(-5), quarter_duration),   # D4 quarter
+        (note_freq(-5), quarter_duration),   # D4 quarter
+        (note_freq(-5), quarter_duration),   # D4 quarter
+
+        # Sixth measure
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+
+        # Seventh measure
+        (note_freq(-3), quarter_duration),   # E4 quarter
+        (note_freq(-3), quarter_duration),   # E4 quarter
+        (note_freq(-3), quarter_duration),   # E4 quarter
+
+        # Eighth measure
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+
+        # Ninth measure - New section
+        (note_freq(-3), quarter_duration),   # E4 quarter
+        (note_freq(-3), quarter_duration),   # E4 quarter
+        (note_freq(-3), quarter_duration),   # E4 quarter
+
+        # Tenth measure
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+
+        # Eleventh measure
+        (note_freq(-5), quarter_duration),   # D4 quarter
+        (note_freq(-5), quarter_duration),   # D4 quarter
+        (note_freq(-5), quarter_duration),   # D4 quarter
+
+        # Twelfth measure
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+
+        # Thirteenth measure
+        (note_freq(-7), quarter_duration),   # C#4 quarter
+        (note_freq(-7), quarter_duration),   # C#4 quarter
+        (note_freq(-7), quarter_duration),   # C#4 quarter
+
+        # Fourteenth measure
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+
+        # Fifteenth measure
+        (note_freq(-5), quarter_duration),   # D4 quarter
+        (note_freq(-5), quarter_duration),   # D4 quarter
+        (note_freq(-5), quarter_duration),   # D4 quarter
+
+        # Sixteenth measure
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+        (note_freq(-8), quarter_duration),   # B3 quarter
+    ]
+    
+    samples = []
+    bass_samples = []
+    
+    # Generate melody with attack and release
+    for freq, duration in melody:
+        note_samples = generate_square_wave(freq, duration, 0.3)
+        # Add attack
+        attack_samples = int(0.02 * sample_rate)  # 20ms attack
+        for i in range(min(attack_samples, len(note_samples))):
+            note_samples[i] *= (i / attack_samples)
+        # Add release
+        release_samples = int(0.03 * sample_rate)  # 30ms release
+        for i in range(min(release_samples, len(note_samples))):
+            note_samples[-(i+1)] *= (i / release_samples)
+        samples.extend(note_samples)
+    
+    # Generate bass with longer attack and release
+    for freq, duration in bass:
+        note_samples = generate_square_wave(freq, duration, 0.2)
+        # Add attack
+        attack_samples = int(0.03 * sample_rate)  # 30ms attack
+        for i in range(min(attack_samples, len(note_samples))):
+            note_samples[i] *= (i / attack_samples)
+        # Add release
+        release_samples = int(0.04 * sample_rate)  # 40ms release
+        for i in range(min(release_samples, len(note_samples))):
+            note_samples[-(i+1)] *= (i / release_samples)
+        bass_samples.extend(note_samples)
+    
+    # Ensure both arrays are the same length
+    max_length = max(len(samples), len(bass_samples))
+    samples.extend([0] * (max_length - len(samples)))
+    bass_samples.extend([0] * (max_length - len(bass_samples)))
+    
+    # Mix melody and bass
+    mixed_samples = [samples[i] + bass_samples[i] for i in range(max_length)]
+    
+    # Normalize
+    max_amplitude = max(abs(min(mixed_samples)), abs(max(mixed_samples)))
+    if max_amplitude > 0:
+        scale_factor = 0.95 / max_amplitude
+        mixed_samples = [s * scale_factor for s in mixed_samples]
+    
+    # Loop the sequence 2 times (it's twice as long now)
+    return mixed_samples * 2
+
 def main():
-    """Create all sound effects."""
-    # Ensure the sounds directory exists
+    """Generate all sound effects"""
+    # Create sounds directory if it doesn't exist
     os.makedirs('assets/sounds', exist_ok=True)
     
-    # Generate all sound effects
+    # Generate and save all sound effects
     save_wave_file('assets/sounds/move.wav', create_move_sound())
     save_wave_file('assets/sounds/rotate.wav', create_rotate_sound())
     save_wave_file('assets/sounds/drop.wav', create_drop_sound())
     save_wave_file('assets/sounds/clear.wav', create_clear_sound())
-    save_wave_file('assets/sounds/game_over.wav', create_game_over_sound())
     save_wave_file('assets/sounds/tetris.wav', create_tetris_sound())
+    save_wave_file('assets/sounds/game_over.wav', create_game_over_sound())
+    save_wave_file('assets/sounds/background.wav', create_background_music())
     
     print("Sound effects generated successfully!")
 
