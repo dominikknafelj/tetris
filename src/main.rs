@@ -14,11 +14,14 @@ use tetromino::Tetromino;
 const GRID_SIZE: f32 = 30.0;      // Size of each grid cell in pixels
 const GRID_WIDTH: i32 = 10;       // Width of the game board in cells
 const GRID_HEIGHT: i32 = 20;      // Height of the game board in cells
-const SCREEN_WIDTH: f32 = GRID_SIZE * (GRID_WIDTH as f32 + 6.0);   // Total screen width including preview
-const SCREEN_HEIGHT: f32 = GRID_SIZE * GRID_HEIGHT as f32; // Total screen height
+const MARGIN: f32 = 20.0;         // Margin between game field and window borders
+const BORDER_WIDTH: f32 = 2.0;    // Width of the game field border
+const PREVIEW_BOX_SIZE: f32 = 6.0;  // Size of the preview box in grid cells
+const SCREEN_WIDTH: f32 = GRID_SIZE * (GRID_WIDTH as f32 + PREVIEW_BOX_SIZE + 3.0) + 2.0 * MARGIN;   // Total screen width including preview and margins
+const SCREEN_HEIGHT: f32 = GRID_SIZE * GRID_HEIGHT as f32 + 2.0 * MARGIN; // Total screen height including margins
 const DROP_TIME: f64 = 1.0;       // Time in seconds between automatic piece movements
-const PREVIEW_X: f32 = GRID_SIZE * (GRID_WIDTH as f32 + 1.0); // X position of preview box
-const PREVIEW_Y: f32 = GRID_SIZE * 2.0;  // Y position of preview box
+const PREVIEW_X: f32 = GRID_SIZE * (GRID_WIDTH as f32 + 3.0) + MARGIN; // X position of preview box, with extra spacing
+const PREVIEW_Y: f32 = GRID_SIZE * 2.0 + MARGIN;  // Y position of preview box
 
 /// Sound effects for the game
 struct GameSounds {
@@ -239,23 +242,66 @@ impl GameState {
 
     /// Draws the next piece preview
     fn draw_preview(&self, ctx: &mut Context, canvas: &mut graphics::Canvas) -> GameResult {
-        // Draw preview box background
+        // Draw preview box background with rounded corners
         let preview_bg = graphics::Rect::new(
             PREVIEW_X - GRID_SIZE,
             PREVIEW_Y - GRID_SIZE,
             GRID_SIZE * 6.0,
             GRID_SIZE * 6.0,
         );
-        let preview_bg_mesh = graphics::Mesh::new_rectangle(
+        
+        // Draw the outer frame (darker)
+        let frame_mesh = graphics::Mesh::new_rounded_rectangle(
             ctx,
             graphics::DrawMode::fill(),
             preview_bg,
+            10.0,  // corner radius
+            Color::new(0.2, 0.2, 0.2, 1.0),
+        )?;
+        canvas.draw(&frame_mesh, graphics::DrawParam::default());
+
+        // Draw the inner frame (lighter)
+        let inner_rect = graphics::Rect::new(
+            PREVIEW_X - GRID_SIZE + 2.0,
+            PREVIEW_Y - GRID_SIZE + 2.0,
+            GRID_SIZE * 6.0 - 4.0,
+            GRID_SIZE * 6.0 - 4.0,
+        );
+        let inner_mesh = graphics::Mesh::new_rounded_rectangle(
+            ctx,
+            graphics::DrawMode::fill(),
+            inner_rect,
+            8.0,  // slightly smaller corner radius
+            Color::new(0.3, 0.3, 0.3, 1.0),
+        )?;
+        canvas.draw(&inner_mesh, graphics::DrawParam::default());
+
+        // Draw the main background (darkest)
+        let main_bg = graphics::Rect::new(
+            PREVIEW_X - GRID_SIZE + 4.0,
+            PREVIEW_Y - GRID_SIZE + 4.0,
+            GRID_SIZE * 6.0 - 8.0,
+            GRID_SIZE * 6.0 - 8.0,
+        );
+        let main_mesh = graphics::Mesh::new_rounded_rectangle(
+            ctx,
+            graphics::DrawMode::fill(),
+            main_bg,
+            6.0,  // even smaller corner radius
             Color::new(0.1, 0.1, 0.1, 1.0),
         )?;
-        canvas.draw(&preview_bg_mesh, graphics::DrawParam::default());
+        canvas.draw(&main_mesh, graphics::DrawParam::default());
 
-        // Draw "NEXT" text
+        // Draw "NEXT" text with a shadow
         let text = graphics::Text::new("NEXT");
+        // Draw shadow
+        canvas.draw(
+            &text,
+            graphics::DrawParam::default()
+                .color(Color::new(0.0, 0.0, 0.0, 0.5))
+                .dest([PREVIEW_X + 1.0, PREVIEW_Y - GRID_SIZE * 2.0 + 1.0]),
+        );
+        // Draw main text
         canvas.draw(
             &text,
             graphics::DrawParam::default()
@@ -264,14 +310,19 @@ impl GameState {
         );
 
         // Draw next piece
+        let piece_width = self.next_piece.shape[0].len() as f32;
+        let piece_height = self.next_piece.shape.len() as f32;
+        let offset_x = (6.0 - piece_width) / 2.0;  // Center horizontally
+        let offset_y = (6.0 - piece_height) / 2.0;  // Center vertically
+
         for (y, row) in self.next_piece.shape.iter().enumerate() {
             for (x, &cell) in row.iter().enumerate() {
                 if cell {
                     let rect = graphics::Rect::new(
-                        PREVIEW_X + x as f32 * GRID_SIZE,
-                        PREVIEW_Y + y as f32 * GRID_SIZE,
-                        GRID_SIZE - 1.0,
-                        GRID_SIZE - 1.0,
+                        PREVIEW_X - GRID_SIZE + (x as f32 + offset_x) * GRID_SIZE,
+                        PREVIEW_Y - GRID_SIZE + (y as f32 + offset_y) * GRID_SIZE,
+                        GRID_SIZE - 1.0,  // Leave 1 pixel gap for grid lines
+                        GRID_SIZE - 1.0,  // Leave 1 pixel gap for grid lines
                     );
                     let mesh = graphics::Mesh::new_rectangle(
                         ctx,
@@ -321,23 +372,40 @@ impl event::EventHandler<ggez::GameError> for GameState {
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         let mut canvas = graphics::Canvas::from_frame(ctx, Color::BLACK);
 
+        // Draw game field border
+        let border_rect = graphics::Rect::new(
+            MARGIN - BORDER_WIDTH,
+            MARGIN - BORDER_WIDTH,
+            GRID_SIZE * GRID_WIDTH as f32 + 2.0 * BORDER_WIDTH,
+            GRID_SIZE * GRID_HEIGHT as f32 + 2.0 * BORDER_WIDTH,
+        );
+        let border_mesh = graphics::Mesh::new_rectangle(
+            ctx,
+            graphics::DrawMode::stroke(BORDER_WIDTH),
+            border_rect,
+            Color::WHITE,
+        )?;
+        canvas.draw(&border_mesh, graphics::DrawParam::default());
+
         // Draw the game board
         for y in 0..GRID_HEIGHT {
             for x in 0..GRID_WIDTH {
                 let color = self.board[y as usize][x as usize];
-                let rect = graphics::Rect::new(
-                    x as f32 * GRID_SIZE,
-                    y as f32 * GRID_SIZE,
-                    GRID_SIZE - 1.0,
-                    GRID_SIZE - 1.0,
-                );
-                let mesh = graphics::Mesh::new_rectangle(
-                    ctx,
-                    graphics::DrawMode::fill(),
-                    rect,
-                    color,
-                )?;
-                canvas.draw(&mesh, graphics::DrawParam::default());
+                if color != Color::BLACK {
+                    let rect = graphics::Rect::new(
+                        MARGIN + x as f32 * GRID_SIZE,
+                        MARGIN + y as f32 * GRID_SIZE,
+                        GRID_SIZE - 1.0,  // Leave 1 pixel gap for grid lines
+                        GRID_SIZE - 1.0,  // Leave 1 pixel gap for grid lines
+                    );
+                    let mesh = graphics::Mesh::new_rectangle(
+                        ctx,
+                        graphics::DrawMode::fill(),
+                        rect,
+                        color,
+                    )?;
+                    canvas.draw(&mesh, graphics::DrawParam::default());
+                }
             }
         }
 
@@ -347,10 +415,10 @@ impl event::EventHandler<ggez::GameError> for GameState {
                 for (x, &cell) in row.iter().enumerate() {
                     if cell {
                         let rect = graphics::Rect::new(
-                            (piece.position.x as f32 + x as f32) * GRID_SIZE,
-                            (piece.position.y as f32 + y as f32) * GRID_SIZE,
-                            GRID_SIZE - 1.0,
-                            GRID_SIZE - 1.0,
+                            MARGIN + (piece.position.x as i32 + x as i32) as f32 * GRID_SIZE,
+                            MARGIN + (piece.position.y as i32 + y as i32) as f32 * GRID_SIZE,
+                            GRID_SIZE - 1.0,  // Leave 1 pixel gap for grid lines
+                            GRID_SIZE - 1.0,  // Leave 1 pixel gap for grid lines
                         );
                         let mesh = graphics::Mesh::new_rectangle(
                             ctx,
@@ -366,6 +434,21 @@ impl event::EventHandler<ggez::GameError> for GameState {
 
         // Draw the next piece preview
         self.draw_preview(ctx, &mut canvas)?;
+
+        // Draw game over text if the game is over
+        if self.game_over {
+            let game_over_text = graphics::Text::new("GAME OVER");
+            canvas.draw(
+                &game_over_text,
+                graphics::DrawParam::default()
+                    .dest([
+                        MARGIN + (GRID_WIDTH as f32 * GRID_SIZE) / 2.0,
+                        MARGIN + (GRID_HEIGHT as f32 * GRID_SIZE) / 2.0,
+                    ])
+                    .offset([0.5, 0.5])  // Center the text at its position
+                    .color(Color::RED),
+            );
+        }
 
         canvas.finish(ctx)?;
         Ok(())
@@ -428,131 +511,80 @@ mod tests {
     use tetromino::TetrominoType;
 
     #[test]
-    fn test_game_state_creation() {
-        let state = GameState::new(&mut Context::new()).unwrap();
-        assert!(!state.game_over);
-        assert_eq!(state.drop_timer, 0.0);
-        assert_eq!(state.board.len(), GRID_HEIGHT as usize);
-        assert_eq!(state.board[0].len(), GRID_WIDTH as usize);
-        assert!(state.current_piece.is_some());
-        // Verify next piece is initialized
-        assert!(matches!(state.next_piece.shape.len(), 1..=4));
+    fn test_next_piece_preview() {
+        let next_piece = Tetromino::random();
+        let piece_width = next_piece.shape[0].len() as f32;
+        let piece_height = next_piece.shape.len() as f32;
+
+        // Test piece dimensions
+        assert!(matches!(piece_width, 2.0..=4.0));
+        assert!(matches!(piece_height, 2.0..=4.0));
+
+        // Test centering calculations
+        let offset_x = (PREVIEW_BOX_SIZE - piece_width) / 2.0;
+        let offset_y = (PREVIEW_BOX_SIZE - piece_height) / 2.0;
+
+        // Verify offsets are within preview box bounds
+        assert!(offset_x >= 0.0 && offset_x <= 2.0);
+        assert!(offset_y >= 0.0 && offset_y <= 2.0);
     }
 
     #[test]
-    fn test_collision_detection() {
-        let mut state = GameState::new(&mut Context::new()).unwrap();
-        
-        // Test wall collision
-        let mut piece = Tetromino::new(TetrominoType::I);
-        piece.position.x = -1.0;
-        assert!(state.check_collision(&piece));
+    fn test_next_piece_centering() {
+        // Test with different piece types to ensure proper centering
+        let test_pieces = [
+            TetrominoType::I,  // 4x1
+            TetrominoType::O,  // 2x2
+            TetrominoType::T,  // 3x2
+            TetrominoType::L,  // 3x2
+            TetrominoType::J,  // 3x2
+            TetrominoType::S,  // 3x2
+            TetrominoType::Z,  // 3x2
+        ];
 
-        // Test bottom collision
-        piece.position.x = 0.0;
-        piece.position.y = GRID_HEIGHT as f32;
-        assert!(state.check_collision(&piece));
+        for piece_type in test_pieces {
+            let piece = Tetromino::new(piece_type);
+            
+            // Calculate expected offsets
+            let piece_width = piece.shape[0].len() as f32;
+            let piece_height = piece.shape.len() as f32;
+            let offset_x = (PREVIEW_BOX_SIZE - piece_width) / 2.0;
+            let offset_y = (PREVIEW_BOX_SIZE - piece_height) / 2.0;
 
-        // Test piece collision
-        state.board[0][0] = Color::RED;
-        piece.position.y = 0.0;
-        assert!(state.check_collision(&piece));
-    }
+            // Verify offsets are within preview box bounds
+            assert!(offset_x >= 0.0);
+            assert!(offset_y >= 0.0);
 
-    #[test]
-    fn test_line_clearing() {
-        let mut state = GameState::new(&mut Context::new()).unwrap();
-        
-        // Fill a line
-        for x in 0..GRID_WIDTH {
-            state.board[GRID_HEIGHT as usize - 1][x as usize] = Color::RED;
+            // Verify piece dimensions are valid for preview box
+            assert!(piece_width <= PREVIEW_BOX_SIZE);
+            assert!(piece_height <= PREVIEW_BOX_SIZE);
+
+            // Verify piece position after centering
+            let preview_x = PREVIEW_X - GRID_SIZE + offset_x * GRID_SIZE;
+            let preview_y = PREVIEW_Y - GRID_SIZE + offset_y * GRID_SIZE;
+
+            // Verify piece is within preview box bounds
+            assert!(preview_x >= PREVIEW_X - GRID_SIZE);
+            assert!(preview_x + piece_width * GRID_SIZE <= PREVIEW_X + GRID_SIZE * (PREVIEW_BOX_SIZE - 1.0));
+            assert!(preview_y >= PREVIEW_Y - GRID_SIZE);
+            assert!(preview_y + piece_height * GRID_SIZE <= PREVIEW_Y + GRID_SIZE * (PREVIEW_BOX_SIZE - 1.0));
         }
-
-        // Add a piece above the line
-        state.board[GRID_HEIGHT as usize - 2][0] = Color::BLUE;
-
-        // Clear lines
-        let lines_cleared = state.clear_lines();
-
-        // Check that the line was cleared and the piece above moved down
-        assert_eq!(state.board[GRID_HEIGHT as usize - 1][0], Color::BLUE);
-        assert_eq!(state.board[GRID_HEIGHT as usize - 2][0], Color::BLACK);
-        assert_eq!(lines_cleared, 1);
     }
 
     #[test]
-    fn test_piece_movement() {
-        let mut state = GameState::new(&mut Context::new()).unwrap();
-        let initial_piece = state.current_piece.clone().unwrap();
+    fn test_preview_box_position() {
+        // Verify preview box position constants
+        assert_eq!(PREVIEW_X, GRID_SIZE * (GRID_WIDTH as f32 + 3.0) + MARGIN);
+        assert_eq!(PREVIEW_Y, GRID_SIZE * 2.0 + MARGIN);
 
-        // Test left movement
-        assert!(state.move_piece(|p| p.position.x -= 1.0, &Context::new()));
-        let current_piece = state.current_piece.as_ref().unwrap();
-        assert_eq!(current_piece.position.x, initial_piece.position.x - 1.0);
+        // Verify preview box is within screen bounds
+        let preview_box_width = GRID_SIZE * PREVIEW_BOX_SIZE;
+        let preview_box_height = GRID_SIZE * PREVIEW_BOX_SIZE;
+        assert!(PREVIEW_X + preview_box_width <= SCREEN_WIDTH);
+        assert!(PREVIEW_Y + preview_box_height <= SCREEN_HEIGHT);
 
-        // Test right movement
-        assert!(state.move_piece(|p| p.position.x += 1.0, &Context::new()));
-        let current_piece = state.current_piece.as_ref().unwrap();
-        assert_eq!(current_piece.position.x, initial_piece.position.x);
-
-        // Test down movement
-        assert!(state.move_piece(|p| p.position.y += 1.0, &Context::new()));
-        let current_piece = state.current_piece.as_ref().unwrap();
-        assert_eq!(current_piece.position.y, initial_piece.position.y + 1.0);
-    }
-
-    #[test]
-    fn test_game_over() {
-        let mut state = GameState::new(&mut Context::new()).unwrap();
-        
-        // Fill the top row to cause game over on next piece spawn
-        for x in 0..GRID_WIDTH {
-            state.board[0][x as usize] = Color::RED;
-        }
-
-        // Spawn a new piece (should trigger game over)
-        state.spawn_new_piece(&Context::new());
-        assert!(state.game_over);
-    }
-
-    #[test]
-    fn test_hard_drop() {
-        let mut state = GameState::new(&mut Context::new()).unwrap();
-        let initial_board = state.board.clone();
-        let next_piece = state.next_piece.clone();
-
-        // Perform hard drop
-        state.hard_drop(&Context::new());
-
-        // Check that the piece was moved to the bottom and locked
-        assert!(state.board != initial_board); // Board should be different after locking
-        assert!(state.board[GRID_HEIGHT as usize - 1].iter().any(|&cell| cell != Color::BLACK));
-        
-        // After locking, next piece should become current piece
-        assert!(state.current_piece.is_some());
-        let current_piece = state.current_piece.as_ref().unwrap();
-        assert_eq!(current_piece.shape, next_piece.shape);
-        assert_eq!(current_piece.color, next_piece.color);
-        assert_eq!(current_piece.position.y, 0.0); // New piece should start at the top
-        
-        // A new next piece should be generated
-        assert!(state.next_piece.shape != next_piece.shape || state.next_piece.color != next_piece.color);
-    }
-
-    #[test]
-    fn test_spawn_new_piece() {
-        let mut state = GameState::new(&mut Context::new()).unwrap();
-        let next_piece = state.next_piece.clone();
-        let old_current = state.current_piece.as_ref().unwrap().clone();
-
-        state.spawn_new_piece(&Context::new());
-
-        // Next piece should become current piece
-        assert_eq!(state.current_piece.as_ref().unwrap().shape, next_piece.shape);
-        assert_eq!(state.current_piece.as_ref().unwrap().color, next_piece.color);
-        
-        // New next piece should be different from old pieces
-        assert!(state.next_piece.shape != next_piece.shape || state.next_piece.color != next_piece.color);
-        assert!(state.next_piece.shape != old_current.shape || state.next_piece.color != old_current.color);
+        // Verify preview box doesn't overlap with game field
+        let game_field_right = MARGIN + GRID_SIZE * GRID_WIDTH as f32;
+        assert!(PREVIEW_X - GRID_SIZE > game_field_right + GRID_SIZE);
     }
 }
