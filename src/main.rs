@@ -5,6 +5,7 @@ use ggez::{
     event,
     graphics::{self, Color},
     input::keyboard::{KeyCode, KeyInput},
+    audio::{self, SoundSource},
     Context, GameResult,
 };
 use tetromino::Tetromino;
@@ -19,6 +20,52 @@ const DROP_TIME: f64 = 1.0;       // Time in seconds between automatic piece mov
 const PREVIEW_X: f32 = GRID_SIZE * (GRID_WIDTH as f32 + 1.0); // X position of preview box
 const PREVIEW_Y: f32 = GRID_SIZE * 2.0;  // Y position of preview box
 
+/// Sound effects for the game
+struct GameSounds {
+    move_sound: audio::Source,
+    rotate_sound: audio::Source,
+    drop_sound: audio::Source,
+    clear_sound: audio::Source,
+    game_over_sound: audio::Source,
+}
+
+impl GameSounds {
+    /// Loads all sound effects
+    fn new(ctx: &mut Context) -> GameResult<Self> {
+        Ok(Self {
+            move_sound: audio::Source::new(ctx, "/sounds/move.wav")?,
+            rotate_sound: audio::Source::new(ctx, "/sounds/rotate.wav")?,
+            drop_sound: audio::Source::new(ctx, "/sounds/drop.wav")?,
+            clear_sound: audio::Source::new(ctx, "/sounds/clear.wav")?,
+            game_over_sound: audio::Source::new(ctx, "/sounds/game_over.wav")?,
+        })
+    }
+
+    /// Plays a sound effect
+    fn play(&mut self, sound_type: SoundType, ctx: &Context) {
+        let sound = match sound_type {
+            SoundType::Move => &mut self.move_sound,
+            SoundType::Rotate => &mut self.rotate_sound,
+            SoundType::Drop => &mut self.drop_sound,
+            SoundType::Clear => &mut self.clear_sound,
+            SoundType::GameOver => &mut self.game_over_sound,
+        };
+        if let Err(e) = sound.play_detached(ctx) {
+            eprintln!("Error playing sound: {}", e);
+        }
+    }
+}
+
+/// Types of sound effects available in the game
+#[derive(Copy, Clone)]
+enum SoundType {
+    Move,
+    Rotate,
+    Drop,
+    Clear,
+    GameOver,
+}
+
 /// Main game state that holds all the game data
 struct GameState {
     board: Vec<Vec<Color>>,       // 2D grid representing the game board
@@ -26,26 +73,29 @@ struct GameState {
     next_piece: Tetromino,        // Next piece to spawn
     game_over: bool,              // Whether the game has ended
     drop_timer: f64,              // Timer for automatic piece movement
+    sounds: GameSounds,           // Game sound effects
 }
 
 impl GameState {
     /// Creates a new game state with an empty board and a random starting piece
-    fn new() -> Self {
-        Self {
+    fn new(ctx: &mut Context) -> GameResult<Self> {
+        Ok(Self {
             board: vec![vec![Color::BLACK; GRID_WIDTH as usize]; GRID_HEIGHT as usize],
             current_piece: Some(Tetromino::random()),
             next_piece: Tetromino::random(),
             game_over: false,
             drop_timer: 0.0,
-        }
+            sounds: GameSounds::new(ctx)?,
+        })
     }
 
     /// Spawns a new piece at the top of the board
     /// If the new piece collides with existing pieces, the game is over
-    fn spawn_new_piece(&mut self) {
+    fn spawn_new_piece(&mut self, ctx: &Context) {
         let new_piece = self.next_piece.clone();
         if self.check_collision(&new_piece) {
             self.game_over = true;
+            self.sounds.play(SoundType::GameOver, ctx);
         }
         self.current_piece = Some(new_piece);
         self.next_piece = Tetromino::random();
@@ -74,51 +124,9 @@ impl GameState {
         false
     }
 
-    /// Locks the current piece in place on the board
-    /// This happens when a piece can't move down further
-    fn lock_piece(&mut self) {
-        let piece = match &self.current_piece {
-            Some(p) => p.clone(),
-            None => return,
-        };
-
-        // Copy the piece's shape to the board
-        for (y, row) in piece.shape.iter().enumerate() {
-            for (x, &cell) in row.iter().enumerate() {
-                if cell {
-                    let board_x = piece.position.x as i32 + x as i32;
-                    let board_y = piece.position.y as i32 + y as i32;
-                    if board_y >= 0 {
-                        self.board[board_y as usize][board_x as usize] = piece.color;
-                    }
-                }
-            }
-        }
-        self.clear_lines();
-        self.spawn_new_piece();
-    }
-
-    /// Clears any completed lines from the board
-    /// Completed lines are removed and all lines above are moved down
-    fn clear_lines(&mut self) {
-        let mut y = GRID_HEIGHT - 1;
-        while y >= 0 {
-            if self.board[y as usize].iter().all(|&cell| cell != Color::BLACK) {
-                // Move all lines above the cleared line down
-                for y2 in (1..=y).rev() {
-                    self.board[y2 as usize] = self.board[(y2 - 1) as usize].clone();
-                }
-                // Add a new empty line at the top
-                self.board[0] = vec![Color::BLACK; GRID_WIDTH as usize];
-            } else {
-                y -= 1;
-            }
-        }
-    }
-
     /// Attempts to move the current piece using the provided movement function
     /// Returns true if the movement was successful, false if it caused a collision
-    fn move_piece(&mut self, movement: fn(&mut Tetromino)) -> bool {
+    fn move_piece(&mut self, movement: fn(&mut Tetromino), ctx: &Context) -> bool {
         let current = match &self.current_piece {
             Some(piece) => piece.clone(),
             None => return false,
@@ -129,6 +137,7 @@ impl GameState {
         
         if !self.check_collision(&new_piece) {
             self.current_piece = Some(new_piece);
+            self.sounds.play(SoundType::Move, ctx);
             true
         } else {
             false
@@ -137,7 +146,7 @@ impl GameState {
 
     /// Attempts to rotate the current piece
     /// If the rotation would cause a collision, tries various offsets to make it fit
-    fn try_rotate(&mut self) {
+    fn try_rotate(&mut self, ctx: &Context) {
         let current = match &self.current_piece {
             Some(piece) => piece.clone(),
             None => return,
@@ -155,13 +164,14 @@ impl GameState {
             
             if !self.check_collision(&test_piece) {
                 self.current_piece = Some(test_piece);
+                self.sounds.play(SoundType::Rotate, ctx);
                 return;
             }
         }
     }
 
     /// Instantly drops the current piece to the lowest possible position
-    fn hard_drop(&mut self) {
+    fn hard_drop(&mut self, ctx: &Context) {
         let current = match &self.current_piece {
             Some(piece) => piece.clone(),
             None => return,
@@ -174,7 +184,57 @@ impl GameState {
         // Move back up one step since we found collision
         new_piece.position.y -= 1.0;
         self.current_piece = Some(new_piece);
-        self.lock_piece();
+        self.sounds.play(SoundType::Drop, ctx);
+        self.lock_piece(ctx);
+    }
+
+    /// Locks the current piece in place on the board
+    /// This happens when a piece can't move down further
+    fn lock_piece(&mut self, ctx: &Context) {
+        let piece = match &self.current_piece {
+            Some(p) => p.clone(),
+            None => return,
+        };
+
+        // Copy the piece's shape to the board
+        for (y, row) in piece.shape.iter().enumerate() {
+            for (x, &cell) in row.iter().enumerate() {
+                if cell {
+                    let board_x = piece.position.x as i32 + x as i32;
+                    let board_y = piece.position.y as i32 + y as i32;
+                    if board_y >= 0 {
+                        self.board[board_y as usize][board_x as usize] = piece.color;
+                    }
+                }
+            }
+        }
+        self.sounds.play(SoundType::Drop, ctx);
+        let lines_cleared = self.clear_lines();
+        if lines_cleared > 0 {
+            self.sounds.play(SoundType::Clear, ctx);
+        }
+        self.spawn_new_piece(ctx);
+    }
+
+    /// Clears any completed lines from the board
+    /// Returns the number of lines cleared
+    fn clear_lines(&mut self) -> usize {
+        let mut lines_cleared = 0;
+        let mut y = GRID_HEIGHT - 1;
+        while y >= 0 {
+            if self.board[y as usize].iter().all(|&cell| cell != Color::BLACK) {
+                // Move all lines above the cleared line down
+                for y2 in (1..=y).rev() {
+                    self.board[y2 as usize] = self.board[(y2 - 1) as usize].clone();
+                }
+                // Add a new empty line at the top
+                self.board[0] = vec![Color::BLACK; GRID_WIDTH as usize];
+                lines_cleared += 1;
+            } else {
+                y -= 1;
+            }
+        }
+        lines_cleared
     }
 
     /// Draws the next piece preview
@@ -242,8 +302,14 @@ impl event::EventHandler<ggez::GameError> for GameState {
         // Move the piece down automatically after DROP_TIME seconds
         if self.drop_timer >= DROP_TIME {
             self.drop_timer = 0.0;
-            if !self.move_piece(Tetromino::move_down) {
-                self.lock_piece();
+            if let Some(piece) = &self.current_piece {
+                let mut new_piece = piece.clone();
+                new_piece.position.y += 1.0;
+                if self.check_collision(&new_piece) {
+                    self.lock_piece(ctx);
+                } else {
+                    self.current_piece = Some(new_piece);
+                }
             }
         }
 
@@ -313,7 +379,7 @@ impl event::EventHandler<ggez::GameError> for GameState {
     /// - Space: Hard drop
     fn key_down_event(
         &mut self,
-        _ctx: &mut Context,
+        ctx: &mut Context,
         input: KeyInput,
         _repeat: bool,
     ) -> GameResult {
@@ -323,21 +389,19 @@ impl event::EventHandler<ggez::GameError> for GameState {
 
         match input.keycode {
             Some(KeyCode::Left) => {
-                self.move_piece(Tetromino::move_left);
+                self.move_piece(|p| p.position.x -= 1.0, ctx);
             }
             Some(KeyCode::Right) => {
-                self.move_piece(Tetromino::move_right);
+                self.move_piece(|p| p.position.x += 1.0, ctx);
             }
             Some(KeyCode::Down) => {
-                if !self.move_piece(Tetromino::move_down) {
-                    self.lock_piece();
-                }
+                self.move_piece(|p| p.position.y += 1.0, ctx);
             }
             Some(KeyCode::Up) => {
-                self.try_rotate();
+                self.try_rotate(ctx);
             }
             Some(KeyCode::Space) => {
-                self.hard_drop();
+                self.hard_drop(ctx);
             }
             _ => {}
         }
@@ -347,17 +411,14 @@ impl event::EventHandler<ggez::GameError> for GameState {
 }
 
 /// Entry point of the game
-fn main() -> GameResult {
-    // Set up the game window
-    let cb = ggez::ContextBuilder::new("tetris", "tetris")
+pub fn main() -> GameResult {
+    let cb = ggez::ContextBuilder::new("tetris", "ggez")
         .window_setup(WindowSetup::default().title("Tetris"))
-        .window_mode(
-            WindowMode::default()
-                .dimensions(SCREEN_WIDTH, SCREEN_HEIGHT)
-                .resizable(false),
-        );
-    let (ctx, event_loop) = cb.build()?;
-    let state = GameState::new();
+        .window_mode(WindowMode::default().dimensions(SCREEN_WIDTH, SCREEN_HEIGHT))
+        .add_resource_path("assets");
+
+    let (mut ctx, event_loop) = cb.build()?;
+    let state = GameState::new(&mut ctx)?;
     event::run(ctx, event_loop, state)
 }
 
@@ -368,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_game_state_creation() {
-        let state = GameState::new();
+        let state = GameState::new(&mut Context::new()).unwrap();
         assert!(!state.game_over);
         assert_eq!(state.drop_timer, 0.0);
         assert_eq!(state.board.len(), GRID_HEIGHT as usize);
@@ -380,7 +441,7 @@ mod tests {
 
     #[test]
     fn test_collision_detection() {
-        let mut state = GameState::new();
+        let mut state = GameState::new(&mut Context::new()).unwrap();
         
         // Test wall collision
         let mut piece = Tetromino::new(TetrominoType::I);
@@ -400,7 +461,7 @@ mod tests {
 
     #[test]
     fn test_line_clearing() {
-        let mut state = GameState::new();
+        let mut state = GameState::new(&mut Context::new()).unwrap();
         
         // Fill a line
         for x in 0..GRID_WIDTH {
@@ -411,37 +472,38 @@ mod tests {
         state.board[GRID_HEIGHT as usize - 2][0] = Color::BLUE;
 
         // Clear lines
-        state.clear_lines();
+        let lines_cleared = state.clear_lines();
 
         // Check that the line was cleared and the piece above moved down
         assert_eq!(state.board[GRID_HEIGHT as usize - 1][0], Color::BLUE);
         assert_eq!(state.board[GRID_HEIGHT as usize - 2][0], Color::BLACK);
+        assert_eq!(lines_cleared, 1);
     }
 
     #[test]
     fn test_piece_movement() {
-        let mut state = GameState::new();
+        let mut state = GameState::new(&mut Context::new()).unwrap();
         let initial_piece = state.current_piece.clone().unwrap();
 
         // Test left movement
-        assert!(state.move_piece(Tetromino::move_left));
+        assert!(state.move_piece(|p| p.position.x -= 1.0, &Context::new()));
         let current_piece = state.current_piece.as_ref().unwrap();
         assert_eq!(current_piece.position.x, initial_piece.position.x - 1.0);
 
         // Test right movement
-        assert!(state.move_piece(Tetromino::move_right));
+        assert!(state.move_piece(|p| p.position.x += 1.0, &Context::new()));
         let current_piece = state.current_piece.as_ref().unwrap();
         assert_eq!(current_piece.position.x, initial_piece.position.x);
 
         // Test down movement
-        assert!(state.move_piece(Tetromino::move_down));
+        assert!(state.move_piece(|p| p.position.y += 1.0, &Context::new()));
         let current_piece = state.current_piece.as_ref().unwrap();
         assert_eq!(current_piece.position.y, initial_piece.position.y + 1.0);
     }
 
     #[test]
     fn test_game_over() {
-        let mut state = GameState::new();
+        let mut state = GameState::new(&mut Context::new()).unwrap();
         
         // Fill the top row to cause game over on next piece spawn
         for x in 0..GRID_WIDTH {
@@ -449,18 +511,18 @@ mod tests {
         }
 
         // Spawn a new piece (should trigger game over)
-        state.spawn_new_piece();
+        state.spawn_new_piece(&Context::new());
         assert!(state.game_over);
     }
 
     #[test]
     fn test_hard_drop() {
-        let mut state = GameState::new();
+        let mut state = GameState::new(&mut Context::new()).unwrap();
         let initial_board = state.board.clone();
         let next_piece = state.next_piece.clone();
 
         // Perform hard drop
-        state.hard_drop();
+        state.hard_drop(&Context::new());
 
         // Check that the piece was moved to the bottom and locked
         assert!(state.board != initial_board); // Board should be different after locking
@@ -479,11 +541,11 @@ mod tests {
 
     #[test]
     fn test_spawn_new_piece() {
-        let mut state = GameState::new();
+        let mut state = GameState::new(&mut Context::new()).unwrap();
         let next_piece = state.next_piece.clone();
         let old_current = state.current_piece.as_ref().unwrap().clone();
 
-        state.spawn_new_piece();
+        state.spawn_new_piece(&Context::new());
 
         // Next piece should become current piece
         assert_eq!(state.current_piece.as_ref().unwrap().shape, next_piece.shape);
