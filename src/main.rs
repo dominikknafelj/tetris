@@ -13,14 +13,17 @@ use tetromino::Tetromino;
 const GRID_SIZE: f32 = 30.0;      // Size of each grid cell in pixels
 const GRID_WIDTH: i32 = 10;       // Width of the game board in cells
 const GRID_HEIGHT: i32 = 20;      // Height of the game board in cells
-const SCREEN_WIDTH: f32 = GRID_SIZE * GRID_WIDTH as f32;   // Total screen width
+const SCREEN_WIDTH: f32 = GRID_SIZE * (GRID_WIDTH as f32 + 6.0);   // Total screen width including preview
 const SCREEN_HEIGHT: f32 = GRID_SIZE * GRID_HEIGHT as f32; // Total screen height
 const DROP_TIME: f64 = 1.0;       // Time in seconds between automatic piece movements
+const PREVIEW_X: f32 = GRID_SIZE * (GRID_WIDTH as f32 + 1.0); // X position of preview box
+const PREVIEW_Y: f32 = GRID_SIZE * 2.0;  // Y position of preview box
 
 /// Main game state that holds all the game data
 struct GameState {
     board: Vec<Vec<Color>>,       // 2D grid representing the game board
     current_piece: Option<Tetromino>,  // Currently active piece
+    next_piece: Tetromino,        // Next piece to spawn
     game_over: bool,              // Whether the game has ended
     drop_timer: f64,              // Timer for automatic piece movement
 }
@@ -31,6 +34,7 @@ impl GameState {
         Self {
             board: vec![vec![Color::BLACK; GRID_WIDTH as usize]; GRID_HEIGHT as usize],
             current_piece: Some(Tetromino::random()),
+            next_piece: Tetromino::random(),
             game_over: false,
             drop_timer: 0.0,
         }
@@ -39,11 +43,12 @@ impl GameState {
     /// Spawns a new piece at the top of the board
     /// If the new piece collides with existing pieces, the game is over
     fn spawn_new_piece(&mut self) {
-        let new_piece = Tetromino::random();
+        let new_piece = self.next_piece.clone();
         if self.check_collision(&new_piece) {
             self.game_over = true;
         }
         self.current_piece = Some(new_piece);
+        self.next_piece = Tetromino::random();
     }
 
     /// Checks if a piece collides with the board boundaries or existing pieces
@@ -171,6 +176,55 @@ impl GameState {
         self.current_piece = Some(new_piece);
         self.lock_piece();
     }
+
+    /// Draws the next piece preview
+    fn draw_preview(&self, ctx: &mut Context, canvas: &mut graphics::Canvas) -> GameResult {
+        // Draw preview box background
+        let preview_bg = graphics::Rect::new(
+            PREVIEW_X - GRID_SIZE,
+            PREVIEW_Y - GRID_SIZE,
+            GRID_SIZE * 6.0,
+            GRID_SIZE * 6.0,
+        );
+        let preview_bg_mesh = graphics::Mesh::new_rectangle(
+            ctx,
+            graphics::DrawMode::fill(),
+            preview_bg,
+            Color::new(0.1, 0.1, 0.1, 1.0),
+        )?;
+        canvas.draw(&preview_bg_mesh, graphics::DrawParam::default());
+
+        // Draw "NEXT" text
+        let text = graphics::Text::new("NEXT");
+        canvas.draw(
+            &text,
+            graphics::DrawParam::default()
+                .color(Color::WHITE)
+                .dest([PREVIEW_X, PREVIEW_Y - GRID_SIZE * 2.0]),
+        );
+
+        // Draw next piece
+        for (y, row) in self.next_piece.shape.iter().enumerate() {
+            for (x, &cell) in row.iter().enumerate() {
+                if cell {
+                    let rect = graphics::Rect::new(
+                        PREVIEW_X + x as f32 * GRID_SIZE,
+                        PREVIEW_Y + y as f32 * GRID_SIZE,
+                        GRID_SIZE - 1.0,
+                        GRID_SIZE - 1.0,
+                    );
+                    let mesh = graphics::Mesh::new_rectangle(
+                        ctx,
+                        graphics::DrawMode::fill(),
+                        rect,
+                        self.next_piece.color,
+                    )?;
+                    canvas.draw(&mesh, graphics::DrawParam::default());
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Implementation of the game loop and event handling
@@ -243,6 +297,9 @@ impl event::EventHandler<ggez::GameError> for GameState {
                 }
             }
         }
+
+        // Draw the next piece preview
+        self.draw_preview(ctx, &mut canvas)?;
 
         canvas.finish(ctx)?;
         Ok(())
@@ -317,6 +374,8 @@ mod tests {
         assert_eq!(state.board.len(), GRID_HEIGHT as usize);
         assert_eq!(state.board[0].len(), GRID_WIDTH as usize);
         assert!(state.current_piece.is_some());
+        // Verify next piece is initialized
+        assert!(matches!(state.next_piece.shape.len(), 1..=4));
     }
 
     #[test]
@@ -398,6 +457,7 @@ mod tests {
     fn test_hard_drop() {
         let mut state = GameState::new();
         let initial_board = state.board.clone();
+        let next_piece = state.next_piece.clone();
 
         // Perform hard drop
         state.hard_drop();
@@ -406,9 +466,31 @@ mod tests {
         assert!(state.board != initial_board); // Board should be different after locking
         assert!(state.board[GRID_HEIGHT as usize - 1].iter().any(|&cell| cell != Color::BLACK));
         
-        // After locking, a new piece should be spawned at the top
+        // After locking, next piece should become current piece
         assert!(state.current_piece.is_some());
-        let new_piece = state.current_piece.as_ref().unwrap();
-        assert_eq!(new_piece.position.y, 0.0); // New piece should start at the top
+        let current_piece = state.current_piece.as_ref().unwrap();
+        assert_eq!(current_piece.shape, next_piece.shape);
+        assert_eq!(current_piece.color, next_piece.color);
+        assert_eq!(current_piece.position.y, 0.0); // New piece should start at the top
+        
+        // A new next piece should be generated
+        assert!(state.next_piece.shape != next_piece.shape || state.next_piece.color != next_piece.color);
+    }
+
+    #[test]
+    fn test_spawn_new_piece() {
+        let mut state = GameState::new();
+        let next_piece = state.next_piece.clone();
+        let old_current = state.current_piece.as_ref().unwrap().clone();
+
+        state.spawn_new_piece();
+
+        // Next piece should become current piece
+        assert_eq!(state.current_piece.as_ref().unwrap().shape, next_piece.shape);
+        assert_eq!(state.current_piece.as_ref().unwrap().color, next_piece.color);
+        
+        // New next piece should be different from old pieces
+        assert!(state.next_piece.shape != next_piece.shape || state.next_piece.color != next_piece.color);
+        assert!(state.next_piece.shape != old_current.shape || state.next_piece.color != old_current.color);
     }
 }
