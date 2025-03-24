@@ -132,4 +132,75 @@ impl Tetromino {
     pub fn move_down(&mut self) {
         self.position.y += 1.0;
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tetromino_creation() {
+        // Test I piece
+        let i_piece = Tetromino::new(TetrominoType::I);
+        assert_eq!(i_piece.shape.len(), 1);
+        assert_eq!(i_piece.shape[0].len(), 4);
+        assert!(i_piece.shape[0].iter().all(|&cell| cell));
+        assert_eq!(i_piece.color, Color::CYAN);
+
+        // Test O piece
+        let o_piece = Tetromino::new(TetrominoType::O);
+        assert_eq!(o_piece.shape.len(), 2);
+        assert_eq!(o_piece.shape[0].len(), 2);
+        assert!(o_piece.shape.iter().all(|row| row.iter().all(|&cell| cell)));
+        assert_eq!(o_piece.color, Color::YELLOW);
+    }
+
+    #[test]
+    fn test_tetromino_movement() {
+        let mut piece = Tetromino::new(TetrominoType::I);
+        let initial_pos = piece.position;
+
+        // Test left movement
+        piece.move_left();
+        assert_eq!(piece.position.x, initial_pos.x - 1.0);
+        assert_eq!(piece.position.y, initial_pos.y);
+
+        // Test right movement
+        piece.move_right();
+        assert_eq!(piece.position.x, initial_pos.x);
+        assert_eq!(piece.position.y, initial_pos.y);
+
+        // Test down movement
+        piece.move_down();
+        assert_eq!(piece.position.x, initial_pos.x);
+        assert_eq!(piece.position.y, initial_pos.y + 1.0);
+    }
+
+    #[test]
+    fn test_tetromino_rotation() {
+        let mut piece = Tetromino::new(TetrominoType::I);
+        let original_shape = piece.shape.clone();
+
+        // Test rotation
+        piece.rotate();
+        assert_eq!(piece.shape.len(), 4);  // I piece becomes vertical
+        assert_eq!(piece.shape[0].len(), 1);
+
+        // Test multiple rotations
+        piece.rotate();
+        piece.rotate();
+        piece.rotate();
+        assert_eq!(piece.shape, original_shape);  // Should be back to original shape
+    }
+
+    #[test]
+    fn test_random_tetromino() {
+        // Test that random pieces are valid
+        for _ in 0..100 {
+            let piece = Tetromino::random();
+            assert!(!piece.shape.is_empty());
+            assert!(!piece.shape[0].is_empty());
+            assert!(piece.shape.iter().all(|row| !row.is_empty()));
+        }
+    }
 } 

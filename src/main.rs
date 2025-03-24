@@ -303,3 +303,112 @@ fn main() -> GameResult {
     let state = GameState::new();
     event::run(ctx, event_loop, state)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tetromino::TetrominoType;
+
+    #[test]
+    fn test_game_state_creation() {
+        let state = GameState::new();
+        assert!(!state.game_over);
+        assert_eq!(state.drop_timer, 0.0);
+        assert_eq!(state.board.len(), GRID_HEIGHT as usize);
+        assert_eq!(state.board[0].len(), GRID_WIDTH as usize);
+        assert!(state.current_piece.is_some());
+    }
+
+    #[test]
+    fn test_collision_detection() {
+        let mut state = GameState::new();
+        
+        // Test wall collision
+        let mut piece = Tetromino::new(TetrominoType::I);
+        piece.position.x = -1.0;
+        assert!(state.check_collision(&piece));
+
+        // Test bottom collision
+        piece.position.x = 0.0;
+        piece.position.y = GRID_HEIGHT as f32;
+        assert!(state.check_collision(&piece));
+
+        // Test piece collision
+        state.board[0][0] = Color::RED;
+        piece.position.y = 0.0;
+        assert!(state.check_collision(&piece));
+    }
+
+    #[test]
+    fn test_line_clearing() {
+        let mut state = GameState::new();
+        
+        // Fill a line
+        for x in 0..GRID_WIDTH {
+            state.board[GRID_HEIGHT as usize - 1][x as usize] = Color::RED;
+        }
+
+        // Add a piece above the line
+        state.board[GRID_HEIGHT as usize - 2][0] = Color::BLUE;
+
+        // Clear lines
+        state.clear_lines();
+
+        // Check that the line was cleared and the piece above moved down
+        assert_eq!(state.board[GRID_HEIGHT as usize - 1][0], Color::BLUE);
+        assert_eq!(state.board[GRID_HEIGHT as usize - 2][0], Color::BLACK);
+    }
+
+    #[test]
+    fn test_piece_movement() {
+        let mut state = GameState::new();
+        let initial_piece = state.current_piece.clone().unwrap();
+
+        // Test left movement
+        assert!(state.move_piece(Tetromino::move_left));
+        let current_piece = state.current_piece.as_ref().unwrap();
+        assert_eq!(current_piece.position.x, initial_piece.position.x - 1.0);
+
+        // Test right movement
+        assert!(state.move_piece(Tetromino::move_right));
+        let current_piece = state.current_piece.as_ref().unwrap();
+        assert_eq!(current_piece.position.x, initial_piece.position.x);
+
+        // Test down movement
+        assert!(state.move_piece(Tetromino::move_down));
+        let current_piece = state.current_piece.as_ref().unwrap();
+        assert_eq!(current_piece.position.y, initial_piece.position.y + 1.0);
+    }
+
+    #[test]
+    fn test_game_over() {
+        let mut state = GameState::new();
+        
+        // Fill the top row to cause game over on next piece spawn
+        for x in 0..GRID_WIDTH {
+            state.board[0][x as usize] = Color::RED;
+        }
+
+        // Spawn a new piece (should trigger game over)
+        state.spawn_new_piece();
+        assert!(state.game_over);
+    }
+
+    #[test]
+    fn test_hard_drop() {
+        let mut state = GameState::new();
+        let initial_board = state.board.clone();
+
+        // Perform hard drop
+        state.hard_drop();
+
+        // Check that the piece was moved to the bottom and locked
+        assert!(state.board != initial_board); // Board should be different after locking
+        assert!(state.board[GRID_HEIGHT as usize - 1].iter().any(|&cell| cell != Color::BLACK));
+        
+        // After locking, a new piece should be spawned at the top
+        assert!(state.current_piece.is_some());
+        let new_piece = state.current_piece.as_ref().unwrap();
+        assert_eq!(new_piece.position.y, 0.0); // New piece should start at the top
+    }
+}
