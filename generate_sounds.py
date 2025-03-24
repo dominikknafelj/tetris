@@ -2,6 +2,7 @@ import wave
 import struct
 import math
 import os
+import numpy as np
 
 def generate_square_wave(frequency, duration, amplitude=0.5, sample_rate=32768):
     """Generate a square wave with the given frequency and duration."""
@@ -36,7 +37,7 @@ def create_move_sound():
     samples = []
     for freq in [440, 392, 349]:  # A4, G4, F4
         samples.extend(generate_square_wave(freq, 0.05, 0.3))
-    save_wave_file('assets/sounds/move.wav', samples)
+    return samples
 
 def create_rotate_sound():
     """Create a quick ascending arpeggio for piece rotation."""
@@ -44,7 +45,7 @@ def create_rotate_sound():
     samples = []
     for freq in [440, 554, 659, 880]:  # A4, C#5, E5, A5
         samples.extend(generate_square_wave(freq, 0.03, 0.3))
-    save_wave_file('assets/sounds/rotate.wav', samples)
+    return samples
 
 def create_drop_sound():
     """Create a low impact sound for piece dropping."""
@@ -61,7 +62,7 @@ def create_drop_sound():
         # Add decay
         sample *= 1 - (i / num_samples)
         samples.append(sample)
-    save_wave_file('assets/sounds/drop.wav', samples)
+    return samples
 
 def create_clear_sound():
     """Create an upward sweep sound for line clearing."""
@@ -75,7 +76,7 @@ def create_clear_sound():
         freq = 440 + (880 * t / duration)  # Sweep from 440Hz to 1320Hz
         sample = 0.4 if math.sin(2 * math.pi * freq * t) >= 0 else -0.4
         samples.append(sample)
-    save_wave_file('assets/sounds/clear.wav', samples)
+    return samples
 
 def create_game_over_sound():
     """Create a descending sequence for game over."""
@@ -84,7 +85,47 @@ def create_game_over_sound():
     freqs = [880, 659, 554, 440, 330]  # A5, E5, C#5, A4, E4
     for freq in freqs:
         samples.extend(generate_square_wave(freq, 0.1, 0.4))
-    save_wave_file('assets/sounds/game_over.wav', samples)
+    return samples
+
+def create_tetris_sound():
+    """Creates a special sound for clearing 4 rows at once (Tetris)"""
+    samples = []
+    # Base frequencies for a C major chord progression (C -> F -> G -> C)
+    base_freqs = [
+        [523.25, 659.25, 783.99],  # C major (C5, E5, G5)
+        [698.46, 880.00, 1046.50], # F major (F5, A5, C6)
+        [783.99, 987.77, 1174.66], # G major (G5, B5, D6)
+        [1046.50, 1318.51, 1567.98] # C major (C6, E6, G6)
+    ]
+    
+    # Duration for each note (in seconds)
+    durations = [0.06, 0.06, 0.06, 0.12]  # Shorter notes for arpeggio, longer for final chord
+    volumes = [0.3, 0.3, 0.3, 0.4]  # Lower volumes to prevent clipping
+    
+    # Create an arpeggio effect with the chord progression
+    for chord_idx, chord in enumerate(base_freqs):
+        # For the final chord, play all notes together
+        if chord_idx == len(base_freqs) - 1:
+            chord_samples = None
+            for freq in chord:
+                wave = generate_square_wave(freq, durations[chord_idx], volumes[chord_idx] / len(chord))
+                if chord_samples is None:
+                    chord_samples = wave
+                else:
+                    chord_samples = [sum(x) for x in zip(chord_samples, wave)]
+            samples.extend(chord_samples)
+        else:
+            # For other chords, play notes in sequence for arpeggio effect
+            for freq in chord:
+                samples.extend(generate_square_wave(freq, durations[chord_idx], volumes[chord_idx]))
+    
+    # Normalize samples to prevent clipping
+    max_amplitude = max(abs(min(samples)), abs(max(samples)))
+    if max_amplitude > 0:
+        scale_factor = 0.9 / max_amplitude  # Leave some headroom
+        samples = [s * scale_factor for s in samples]
+    
+    return samples
 
 def main():
     """Create all sound effects."""
@@ -92,11 +133,12 @@ def main():
     os.makedirs('assets/sounds', exist_ok=True)
     
     # Generate all sound effects
-    create_move_sound()
-    create_rotate_sound()
-    create_drop_sound()
-    create_clear_sound()
-    create_game_over_sound()
+    save_wave_file('assets/sounds/move.wav', create_move_sound())
+    save_wave_file('assets/sounds/rotate.wav', create_rotate_sound())
+    save_wave_file('assets/sounds/drop.wav', create_drop_sound())
+    save_wave_file('assets/sounds/clear.wav', create_clear_sound())
+    save_wave_file('assets/sounds/game_over.wav', create_game_over_sound())
+    save_wave_file('assets/sounds/tetris.wav', create_tetris_sound())
     
     print("Sound effects generated successfully!")
 

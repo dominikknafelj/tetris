@@ -1,4 +1,5 @@
 mod tetromino;
+mod sound_tests;
 
 use ggez::{
     conf::{WindowMode, WindowSetup},
@@ -29,6 +30,7 @@ struct GameSounds {
     rotate_sound: audio::Source,
     drop_sound: audio::Source,
     clear_sound: audio::Source,
+    tetris_sound: audio::Source,
     game_over_sound: audio::Source,
 }
 
@@ -40,33 +42,35 @@ impl GameSounds {
             rotate_sound: audio::Source::new(ctx, "/sounds/rotate.wav")?,
             drop_sound: audio::Source::new(ctx, "/sounds/drop.wav")?,
             clear_sound: audio::Source::new(ctx, "/sounds/clear.wav")?,
+            tetris_sound: audio::Source::new(ctx, "/sounds/tetris.wav")?,
             game_over_sound: audio::Source::new(ctx, "/sounds/game_over.wav")?,
         })
     }
 
     /// Plays a sound effect
-    fn play(&mut self, sound_type: SoundType, ctx: &Context) {
-        let sound = match sound_type {
-            SoundType::Move => &mut self.move_sound,
-            SoundType::Rotate => &mut self.rotate_sound,
-            SoundType::Drop => &mut self.drop_sound,
-            SoundType::Clear => &mut self.clear_sound,
-            SoundType::GameOver => &mut self.game_over_sound,
-        };
-        if let Err(e) = sound.play_detached(ctx) {
-            eprintln!("Error playing sound: {}", e);
-        }
+    fn play_move(&mut self, ctx: &mut Context) -> GameResult {
+        self.move_sound.play_detached(ctx)
     }
-}
 
-/// Types of sound effects available in the game
-#[derive(Copy, Clone)]
-enum SoundType {
-    Move,
-    Rotate,
-    Drop,
-    Clear,
-    GameOver,
+    fn play_rotate(&mut self, ctx: &mut Context) -> GameResult {
+        self.rotate_sound.play_detached(ctx)
+    }
+
+    fn play_drop(&mut self, ctx: &mut Context) -> GameResult {
+        self.drop_sound.play_detached(ctx)
+    }
+
+    fn play_clear(&mut self, ctx: &mut Context) -> GameResult {
+        self.clear_sound.play_detached(ctx)
+    }
+
+    fn play_tetris(&mut self, ctx: &mut Context) -> GameResult {
+        self.tetris_sound.play_detached(ctx)
+    }
+
+    fn play_game_over(&mut self, ctx: &mut Context) -> GameResult {
+        self.game_over_sound.play_detached(ctx)
+    }
 }
 
 /// Main game state that holds all the game data
@@ -94,11 +98,11 @@ impl GameState {
 
     /// Spawns a new piece at the top of the board
     /// If the new piece collides with existing pieces, the game is over
-    fn spawn_new_piece(&mut self, ctx: &Context) {
+    fn spawn_new_piece(&mut self, ctx: &mut Context) {
         let new_piece = self.next_piece.clone();
         if self.check_collision(&new_piece) {
             self.game_over = true;
-            self.sounds.play(SoundType::GameOver, ctx);
+            self.sounds.play_game_over(ctx).unwrap();
         }
         self.current_piece = Some(new_piece);
         self.next_piece = Tetromino::random();
@@ -129,7 +133,7 @@ impl GameState {
 
     /// Attempts to move the current piece using the provided movement function
     /// Returns true if the movement was successful, false if it caused a collision
-    fn move_piece(&mut self, movement: fn(&mut Tetromino), ctx: &Context) -> bool {
+    fn move_piece(&mut self, movement: fn(&mut Tetromino), ctx: &mut Context) -> bool {
         let current = match &self.current_piece {
             Some(piece) => piece.clone(),
             None => return false,
@@ -140,7 +144,7 @@ impl GameState {
         
         if !self.check_collision(&new_piece) {
             self.current_piece = Some(new_piece);
-            self.sounds.play(SoundType::Move, ctx);
+            self.sounds.play_move(ctx).unwrap();
             true
         } else {
             false
@@ -149,7 +153,7 @@ impl GameState {
 
     /// Attempts to rotate the current piece
     /// If the rotation would cause a collision, tries various offsets to make it fit
-    fn try_rotate(&mut self, ctx: &Context) {
+    fn try_rotate(&mut self, ctx: &mut Context) {
         let current = match &self.current_piece {
             Some(piece) => piece.clone(),
             None => return,
@@ -167,14 +171,14 @@ impl GameState {
             
             if !self.check_collision(&test_piece) {
                 self.current_piece = Some(test_piece);
-                self.sounds.play(SoundType::Rotate, ctx);
+                self.sounds.play_rotate(ctx).unwrap();
                 return;
             }
         }
     }
 
     /// Instantly drops the current piece to the lowest possible position
-    fn hard_drop(&mut self, ctx: &Context) {
+    fn hard_drop(&mut self, ctx: &mut Context) {
         let current = match &self.current_piece {
             Some(piece) => piece.clone(),
             None => return,
@@ -187,13 +191,13 @@ impl GameState {
         // Move back up one step since we found collision
         new_piece.position.y -= 1.0;
         self.current_piece = Some(new_piece);
-        self.sounds.play(SoundType::Drop, ctx);
+        self.sounds.play_drop(ctx).unwrap();
         self.lock_piece(ctx);
     }
 
     /// Locks the current piece in place on the board
     /// This happens when a piece can't move down further
-    fn lock_piece(&mut self, ctx: &Context) {
+    fn lock_piece(&mut self, ctx: &mut Context) {
         let piece = match &self.current_piece {
             Some(p) => p.clone(),
             None => return,
@@ -211,32 +215,41 @@ impl GameState {
                 }
             }
         }
-        self.sounds.play(SoundType::Drop, ctx);
-        let lines_cleared = self.clear_lines();
+        self.sounds.play_drop(ctx).unwrap();
+        let lines_cleared = self.clear_lines(ctx);
         if lines_cleared > 0 {
-            self.sounds.play(SoundType::Clear, ctx);
+            self.sounds.play_clear(ctx).unwrap();
         }
         self.spawn_new_piece(ctx);
     }
 
-    /// Clears any completed lines from the board
-    /// Returns the number of lines cleared
-    fn clear_lines(&mut self) -> usize {
+    /// Clears completed lines and returns the number of lines cleared
+    fn clear_lines(&mut self, ctx: &mut Context) -> i32 {
         let mut lines_cleared = 0;
         let mut y = GRID_HEIGHT - 1;
         while y >= 0 {
             if self.board[y as usize].iter().all(|&cell| cell != Color::BLACK) {
-                // Move all lines above the cleared line down
+                // Remove the line
                 for y2 in (1..=y).rev() {
                     self.board[y2 as usize] = self.board[(y2 - 1) as usize].clone();
                 }
-                // Add a new empty line at the top
+                // Add empty line at top
                 self.board[0] = vec![Color::BLACK; GRID_WIDTH as usize];
                 lines_cleared += 1;
             } else {
                 y -= 1;
             }
         }
+
+        // Play appropriate sound based on number of lines cleared
+        if lines_cleared > 0 {
+            if lines_cleared == 4 {
+                self.sounds.play_tetris(ctx).unwrap();
+            } else {
+                self.sounds.play_clear(ctx).unwrap();
+            }
+        }
+
         lines_cleared
     }
 
