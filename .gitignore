@@ -1,4 +1,33 @@
+# Rust build artifacts
 /target/
 **/*.rs.bk
-Cargo.lock
+
+# macOS build artifacts
+/TetrisApp.app/
+/Tetris-v*.zip
+
+# Generated assets
+/sounds/
+/icons/
+/TetrisIcon.icns
+/TetrisIcon.iconset/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.venv
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
 .DS_Store
+
+Cargo.lock

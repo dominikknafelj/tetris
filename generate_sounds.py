@@ -1,7 +1,7 @@
+import os
 import wave
 import struct
 import math
-import os
 import numpy as np
 
 def generate_square_wave(frequency, duration, amplitude=0.5, sample_rate=44100):
@@ -15,9 +15,9 @@ def generate_square_wave(frequency, duration, amplitude=0.5, sample_rate=44100):
         samples.append(sample)
     return samples
 
-def save_wave_file(filename, samples, sample_rate=32768):
+def save_wave_file(filename, samples, sample_rate=44100):
     """Save samples as a WAV file."""
-    with wave.open(filename, 'w') as wave_file:
+    with wave.open(os.path.join("sounds", filename), 'w') as wave_file:
         wave_file.setnchannels(1)  # Mono
         wave_file.setsampwidth(2)  # 2 bytes per sample
         wave_file.setframerate(sample_rate)
@@ -365,21 +365,18 @@ def create_background_music():
     # Loop the sequence 2 times (it's twice as long now)
     return mixed_samples * 2
 
-def main():
+def generate_main():
     """Generate all sound effects"""
-    # Create sounds directory if it doesn't exist
-    os.makedirs('assets/sounds', exist_ok=True)
-    
     # Generate and save all sound effects
-    save_wave_file('assets/sounds/move.wav', create_move_sound())
-    save_wave_file('assets/sounds/rotate.wav', create_rotate_sound())
-    save_wave_file('assets/sounds/drop.wav', create_drop_sound())
-    save_wave_file('assets/sounds/clear.wav', create_clear_sound())
-    save_wave_file('assets/sounds/tetris.wav', create_tetris_sound())
-    save_wave_file('assets/sounds/game_over.wav', create_game_over_sound())
-    save_wave_file('assets/sounds/background.wav', create_background_music())
+    save_wave_file('move.wav', create_move_sound())
+    save_wave_file('rotate.wav', create_rotate_sound())
+    save_wave_file('drop.wav', create_drop_sound())
+    save_wave_file('clear.wav', create_clear_sound())
+    save_wave_file('tetris.wav', create_tetris_sound())
+    save_wave_file('game_over.wav', create_game_over_sound())
+    save_wave_file('background.wav', create_background_music())
     
     print("Sound effects generated successfully!")
 
-if __name__ == '__main__':
-    main() 
+if __name__ == "__main__":
+    generate_main() 

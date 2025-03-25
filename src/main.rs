@@ -10,6 +10,7 @@ use ggez::{
     Context, GameResult,
 };
 use tetromino::Tetromino;
+use std::path::Path;
 
 // Game constants
 const GRID_SIZE: f32 = 60.0;      // Size of each grid cell in pixels (doubled from 30.0)
@@ -39,13 +40,21 @@ struct GameSounds {
 impl GameSounds {
     /// Loads all sound effects
     fn new(ctx: &mut Context) -> GameResult<Self> {
+        // Create sources with paths relative to the resource directory
+        let move_sound = audio::Source::new(ctx, "/sounds/move.wav")?;
+        let rotate_sound = audio::Source::new(ctx, "/sounds/rotate.wav")?;
+        let drop_sound = audio::Source::new(ctx, "/sounds/drop.wav")?;
+        let clear_sound = audio::Source::new(ctx, "/sounds/clear.wav")?;
+        let tetris_sound = audio::Source::new(ctx, "/sounds/tetris.wav")?;
+        let game_over_sound = audio::Source::new(ctx, "/sounds/game_over.wav")?;
+
         Ok(Self {
-            move_sound: audio::Source::new(ctx, "/sounds/move.wav")?,
-            rotate_sound: audio::Source::new(ctx, "/sounds/rotate.wav")?,
-            drop_sound: audio::Source::new(ctx, "/sounds/drop.wav")?,
-            clear_sound: audio::Source::new(ctx, "/sounds/clear.wav")?,
-            tetris_sound: audio::Source::new(ctx, "/sounds/tetris.wav")?,
-            game_over_sound: audio::Source::new(ctx, "/sounds/game_over.wav")?,
+            move_sound,
+            rotate_sound,
+            drop_sound,
+            clear_sound,
+            tetris_sound,
+            game_over_sound,
             background_music: None,
             background_playing: false,
         })
@@ -784,10 +793,18 @@ impl event::EventHandler<ggez::GameError> for GameState {
 
 /// Entry point of the game
 pub fn main() -> GameResult {
+    let resource_dir = if cfg!(debug_assertions) {
+        std::path::PathBuf::from(".")
+    } else {
+        let exe_path = std::env::current_exe()?;
+        let exe_dir = exe_path.parent().unwrap();
+        exe_dir.parent().unwrap().join("Resources")
+    };
+
     let cb = ggez::ContextBuilder::new("tetris", "ggez")
         .window_setup(WindowSetup::default().title("Tetris"))
         .window_mode(WindowMode::default().dimensions(SCREEN_WIDTH, SCREEN_HEIGHT))
-        .add_resource_path("assets");
+        .add_resource_path(resource_dir);
 
     let (mut ctx, event_loop) = cb.build()?;
     let state = GameState::new(&mut ctx)?;
