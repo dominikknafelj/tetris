@@ -12,6 +12,9 @@
 /TetrisIcon.icns
 /TetrisIcon.iconset/
 
+# Game data files
+high_scores.json
+
 # Python cache files
 __pycache__/
 *.pyc

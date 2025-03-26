@@ -4,7 +4,7 @@ use rand::Rng;
 
 /// Represents the different types of Tetris pieces
 /// Each variant corresponds to a standard Tetris piece shape
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum TetrominoType {
     I, // Long piece
     O, // Square piece
@@ -17,7 +17,7 @@ pub enum TetrominoType {
 
 /// Represents a Tetris piece with its shape, color, and position
 /// The shape is stored as a 2D vector of booleans where true represents a filled cell
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Tetromino {
     pub shape: Vec<Vec<bool>>,  // 2D grid representing the piece's shape
     pub color: Color,           // Color of the piece
@@ -118,16 +118,6 @@ impl Tetromino {
         self.shape = new_shape;
     }
 
-    /// Moves the piece one unit to the left
-    pub fn move_left(&mut self) {
-        self.position.x -= 1.0;
-    }
-
-    /// Moves the piece one unit to the right
-    pub fn move_right(&mut self) {
-        self.position.x += 1.0;
-    }
-
     /// Moves the piece one unit down
     pub fn move_down(&mut self) {
         self.position.y += 1.0;
@@ -159,16 +149,6 @@ mod tests {
     fn test_tetromino_movement() {
         let mut piece = Tetromino::new(TetrominoType::I);
         let initial_pos = piece.position;
-
-        // Test left movement
-        piece.move_left();
-        assert_eq!(piece.position.x, initial_pos.x - 1.0);
-        assert_eq!(piece.position.y, initial_pos.y);
-
-        // Test right movement
-        piece.move_right();
-        assert_eq!(piece.position.x, initial_pos.x);
-        assert_eq!(piece.position.y, initial_pos.y);
 
         // Test down movement
         piece.move_down();

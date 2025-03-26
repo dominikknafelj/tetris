@@ -2334,6 +2334,8 @@ dependencies = [
  "ggez",
  "glam 0.25.0",
  "rand",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
