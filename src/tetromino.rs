@@ -33,49 +33,49 @@ impl Tetromino {
                 vec![
                     vec![true, true, true, true],  // I piece is a single row of 4 blocks
                 ],
-                Color::CYAN,
+                Color::from_rgb(0, 240, 240),  // Bright Cyan for I piece
             ),
             TetrominoType::O => (
                 vec![
                     vec![true, true],              // O piece is a 2x2 square
                     vec![true, true],
                 ],
-                Color::YELLOW,
+                Color::from_rgb(240, 240, 0),  // Bright Yellow for O piece
             ),
             TetrominoType::T => (
                 vec![
                     vec![false, true, false],      // T piece has a T shape
                     vec![true, true, true],
                 ],
-                Color::MAGENTA,
+                Color::from_rgb(160, 0, 240),  // Bright Purple for T piece
             ),
             TetrominoType::S => (
                 vec![
                     vec![false, true, true],       // S piece has an S shape
                     vec![true, true, false],
                 ],
-                Color::GREEN,
+                Color::from_rgb(0, 240, 0),    // Bright Green for S piece
             ),
             TetrominoType::Z => (
                 vec![
                     vec![true, true, false],       // Z piece has a Z shape
                     vec![false, true, true],
                 ],
-                Color::RED,
+                Color::from_rgb(240, 0, 0),    // Bright Red for Z piece
             ),
             TetrominoType::J => (
                 vec![
                     vec![true, false, false],      // J piece has a J shape
                     vec![true, true, true],
                 ],
-                Color::BLUE,
+                Color::from_rgb(0, 0, 240),    // Bright Blue for J piece
             ),
             TetrominoType::L => (
                 vec![
                     vec![false, false, true],      // L piece has an L shape
                     vec![true, true, true],
                 ],
-                Color::from_rgb(255, 165, 0), // Orange
+                Color::from_rgb(240, 160, 0),  // Bright Orange for L piece
             ),
         };
 
@@ -145,14 +145,14 @@ mod tests {
         assert_eq!(i_piece.shape.len(), 1);
         assert_eq!(i_piece.shape[0].len(), 4);
         assert!(i_piece.shape[0].iter().all(|&cell| cell));
-        assert_eq!(i_piece.color, Color::CYAN);
+        assert_eq!(i_piece.color, Color::from_rgb(0, 240, 240));
 
         // Test O piece
         let o_piece = Tetromino::new(TetrominoType::O);
         assert_eq!(o_piece.shape.len(), 2);
         assert_eq!(o_piece.shape[0].len(), 2);
         assert!(o_piece.shape.iter().all(|row| row.iter().all(|&cell| cell)));
-        assert_eq!(o_piece.color, Color::YELLOW);
+        assert_eq!(o_piece.color, Color::from_rgb(240, 240, 0));
     }
 
     #[test]
