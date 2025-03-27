@@ -1,7 +1,10 @@
 pub mod tetromino;
 pub mod sound_tests;
-pub mod test_event;
 pub mod constants;
+pub mod sound_manager;
+
+pub mod test_event;
+
 
 // Export main types from tetromino module
 pub use crate::tetromino::{Tetromino, TetrominoType};
