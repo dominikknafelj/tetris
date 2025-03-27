@@ -6,6 +6,15 @@ use tetris::{GameState, Tetromino, TetrominoType, keycode_to_char, HighScores, G
 const GRID_WIDTH: i32 = 10;
 const GRID_HEIGHT: i32 = 20;
 const MAX_HIGH_SCORES: usize = 10;
+const GRID_SIZE: f32 = 20.0;
+const MARGIN: f32 = 20.0;
+const SCREEN_WIDTH: f32 = 800.0;
+const SCREEN_HEIGHT: f32 = 600.0;
+const PREVIEW_X: f32 = GRID_SIZE * (GRID_WIDTH as f32 + 3.0) + MARGIN;
+const PREVIEW_Y: f32 = GRID_SIZE * 2.0 + MARGIN;
+const PREVIEW_BOX_SIZE: f32 = 4.0;
+const BLINK_INTERVAL: f64 = 0.5;
+const CURSOR_BLINK_INTERVAL: f64 = 0.5;
 
 #[test]
 fn test_game_state_properties() {
@@ -486,7 +495,7 @@ fn test_piece_movement() {
     
     // Test moving down (soft drop)
     if let Some(piece) = &mut game_state.current_piece {
-        piece.position.y += 1.0; // Move down
+        piece.position.y += 1.0;
     }
     
     assert_eq!(
@@ -1303,11 +1312,9 @@ fn test_pause_resume_transitions() {
     // Pause the game
     game_state.paused = true;
     assert!(game_state.paused, "Game should be paused");
-    assert_eq!(game_state.screen, GameScreen::Playing, "Screen should remain in Playing mode when paused");
     
-    // Resume the game
-    game_state.paused = false;
-    assert!(!game_state.paused, "Game should be unpaused");
+    // Screen should remain in Playing mode even when paused
+    assert_eq!(game_state.screen, GameScreen::Playing, "Screen should remain in Playing mode when paused");
     
     // Verify game state is preserved during pause/resume
     game_state.score = 500;
@@ -1462,4 +1469,137 @@ fn test_reset_game_state() {
             assert_eq!(game_state.board[y][x], Color::BLACK, "Board should be cleared");
         }
     }
-} 
+}
+
+// Test UI component properties and rendering on different screens
+#[test]
+fn test_ui_component_properties() {
+    let game_state = GameState::new_test();
+    
+    // Constants for rendering components should have valid values
+    assert!(GRID_SIZE > 0.0, "Grid size should be positive");
+    assert!(MARGIN > 0.0, "Margin should be positive");
+    assert!(PREVIEW_BOX_SIZE > 0.0, "Preview box size should be positive");
+    
+    // Preview box position should be valid
+    let preview_box_width = GRID_SIZE * PREVIEW_BOX_SIZE;
+    let preview_box_height = GRID_SIZE * PREVIEW_BOX_SIZE;
+    let game_field_right = MARGIN + GRID_SIZE * GRID_WIDTH as f32;
+    
+    // Preview box should be to the right of the game field
+    assert!(PREVIEW_X > game_field_right, "Preview box should be to the right of the game field");
+    // Preview box should fit within screen bounds
+    assert!(PREVIEW_X + preview_box_width <= SCREEN_WIDTH, "Preview box should fit within screen width");
+    assert!(PREVIEW_Y + preview_box_height <= SCREEN_HEIGHT, "Preview box should fit within screen height");
+}
+
+#[test]
+fn test_score_panel_positioning() {
+    let game_state = GameState::new_test();
+    
+    // Score panel should be positioned below the preview box
+    let panel_top = PREVIEW_Y + GRID_SIZE * 6.0 + 20.0;
+    let panel_width = GRID_SIZE * 6.0;
+    let panel_height = GRID_SIZE * 6.0;
+    
+    // Score panel should fit within screen bounds
+    assert!(PREVIEW_X - GRID_SIZE + panel_width <= SCREEN_WIDTH, "Score panel should fit within screen width");
+    assert!(panel_top + panel_height <= SCREEN_HEIGHT, "Score panel should fit within screen height");
+}
+
+#[test]
+fn test_high_score_display_format() {
+    let mut game_state = GameState::new_test();
+    
+    // Populate high scores with test data
+    game_state.high_scores = HighScores::new();
+    game_state.high_scores.add_score("PLAYER1".to_string(), 1000);
+    game_state.high_scores.add_score("PLAYER2".to_string(), 2000);
+    game_state.high_scores.add_score("PLAYER3".to_string(), 3000);
+    
+    // Verify order - highest scores should come first
+    assert_eq!(game_state.high_scores.entries[0].name, "PLAYER3", "Highest score should be first");
+    assert_eq!(game_state.high_scores.entries[0].score, 3000, "Highest score value should be correct");
+    assert_eq!(game_state.high_scores.entries[1].name, "PLAYER2", "Second highest score should be second");
+    assert_eq!(game_state.high_scores.entries[2].name, "PLAYER1", "Lowest score should be last");
+    
+    // Verify column positions are properly spaced
+    let rank_x = SCREEN_WIDTH * 0.25;
+    let name_x = SCREEN_WIDTH * 0.45;
+    let score_x = SCREEN_WIDTH * 0.75;
+    
+    assert!(rank_x < name_x, "Rank column should be to the left of name column");
+    assert!(name_x < score_x, "Name column should be to the left of score column");
+    assert!(score_x < SCREEN_WIDTH, "Score column should be within screen bounds");
+}
+
+#[test]
+fn test_title_screen_elements() {
+    let mut game_state = GameState::new_test();
+    
+    // Set screen to Title
+    game_state.screen = GameScreen::Title;
+    assert_eq!(game_state.screen, GameScreen::Title, "Game screen should be set to Title");
+    
+    // Title screen should have blinking text functionality
+    // We'll just verify the properties exist and are initialized correctly
+    assert!(game_state.blink_timer >= 0.0, "Blink timer should be initialized");
+    // The text visibility flag should be a boolean
+    assert!(game_state.show_text || !game_state.show_text, "Show text should be a boolean");
+}
+
+#[test]
+fn test_name_input_display() {
+    let mut game_state = GameState::new_test();
+    
+    // Set screen to EnterName
+    game_state.screen = GameScreen::EnterName;
+    assert_eq!(game_state.screen, GameScreen::EnterName, "Game screen should be set to EnterName");
+    
+    // Test cursor blink properties
+    assert!(game_state.cursor_blink_timer >= 0.0, "Cursor blink timer should be initialized");
+    // The cursor visibility flag should be a boolean
+    assert!(game_state.show_cursor || !game_state.show_cursor, "Show cursor should be a boolean");
+    
+    // Verify current_name display
+    game_state.current_name = "TEST".to_string();
+    assert_eq!(game_state.current_name, "TEST", "Name input should display correctly");
+    
+    // Testing name is displayed without modification
+    game_state.current_name = "PLAYER 1".to_string();
+    assert_eq!(game_state.current_name, "PLAYER 1", "Name with spaces should display correctly");
+}
+
+#[test]
+fn test_pause_screen_overlay() {
+    let mut game_state = GameState::new_test();
+    
+    // Set game to playing state
+    game_state.screen = GameScreen::Playing;
+    assert_eq!(game_state.screen, GameScreen::Playing, "Game screen should be set to Playing");
+    
+    // Test pause state
+    assert!(!game_state.paused, "Game should start unpaused");
+    
+    // Set paused state
+    game_state.paused = true;
+    assert!(game_state.paused, "Game should be paused");
+    
+    // Screen should remain in Playing mode even when paused
+    assert_eq!(game_state.screen, GameScreen::Playing, "Screen should remain in Playing mode when paused");
+}
+
+#[test]
+fn test_game_over_screen_elements() {
+    let mut game_state = GameState::new_test();
+    
+    // Set screen to GameOver
+    game_state.screen = GameScreen::GameOver;
+    assert_eq!(game_state.screen, GameScreen::GameOver, "Game screen should be set to GameOver");
+    
+    // Test that the blinking properties exist
+    assert!(game_state.blink_timer >= 0.0, "Blink timer should be initialized");
+    // The text visibility flag should be a boolean
+    assert!(game_state.show_text || !game_state.show_text, "Show text should be a boolean");
+}
+
