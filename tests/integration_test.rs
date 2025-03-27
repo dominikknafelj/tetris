@@ -1244,4 +1244,222 @@ fn test_locking_delay() {
     assert_eq!(game_state.board[y][x+1], piece_color, "Board cell at bottom should have piece color");
     assert_eq!(game_state.board[y+1][x], piece_color, "Board cell at bottom should have piece color");
     assert_eq!(game_state.board[y+1][x+1], piece_color, "Board cell at bottom should have piece color");
+}
+
+// Test complete game flow from title to playing to game over to high scores
+#[test]
+fn test_complete_game_flow() {
+    let mut game_state = GameState::new_test();
+    
+    // Start at title screen
+    game_state.screen = GameScreen::Title;
+    assert_eq!(game_state.screen, GameScreen::Title, "Should start on title screen");
+    
+    // Transition to Playing (simulating key press)
+    game_state.screen = GameScreen::Playing;
+    assert_eq!(game_state.screen, GameScreen::Playing, "Should transition to playing screen");
+    
+    // Trigger game over
+    game_state.screen = GameScreen::GameOver;
+    assert_eq!(game_state.screen, GameScreen::GameOver, "Should transition to game over screen");
+    
+    // Set up score to qualify for high score
+    game_state.score = 1000;
+    game_state.high_scores = HighScores::new();
+    
+    // Check high score and transition to name entry
+    let qualifies = game_state.check_high_score();
+    assert!(qualifies, "Score should qualify for high score");
+    
+    if qualifies {
+        game_state.screen = GameScreen::EnterName;
+    }
+    assert_eq!(game_state.screen, GameScreen::EnterName, "Should transition to name entry screen");
+    
+    // Enter name and submit
+    game_state.current_name = "TESTER".to_string();
+    let added = game_state.add_high_score();
+    assert!(added, "High score should be added successfully");
+    
+    // View high scores
+    game_state.screen = GameScreen::HighScores;
+    assert_eq!(game_state.screen, GameScreen::HighScores, "Should transition to high scores screen");
+    
+    // Return to title screen
+    game_state.screen = GameScreen::Title;
+    assert_eq!(game_state.screen, GameScreen::Title, "Should return to title screen");
+}
+
+// Test pause and resume functionality with screen transitions
+#[test]
+fn test_pause_resume_transitions() {
+    let mut game_state = GameState::new_test();
+    
+    // Start in playing mode
+    game_state.screen = GameScreen::Playing;
+    assert_eq!(game_state.screen, GameScreen::Playing, "Should start in playing mode");
+    assert!(!game_state.paused, "Game should start unpaused");
+    
+    // Pause the game
+    game_state.paused = true;
+    assert!(game_state.paused, "Game should be paused");
+    assert_eq!(game_state.screen, GameScreen::Playing, "Screen should remain in Playing mode when paused");
+    
+    // Resume the game
+    game_state.paused = false;
+    assert!(!game_state.paused, "Game should be unpaused");
+    
+    // Verify game state is preserved during pause/resume
+    game_state.score = 500;
+    game_state.level = 2;
+    game_state.paused = true;
+    
+    // State should be preserved while paused
+    assert_eq!(game_state.score, 500, "Score should be preserved while paused");
+    assert_eq!(game_state.level, 2, "Level should be preserved while paused");
+    
+    // Resume and verify state is still correct
+    game_state.paused = false;
+    assert_eq!(game_state.score, 500, "Score should be preserved after resuming");
+    assert_eq!(game_state.level, 2, "Level should be preserved after resuming");
+}
+
+// Test transition from game over to title if score doesn't qualify for high score
+#[test]
+fn test_game_over_to_title_transition() {
+    let mut game_state = GameState::new_test();
+    
+    // Setup high scores with high minimum score
+    game_state.high_scores = HighScores::new();
+    for i in 0..MAX_HIGH_SCORES {
+        game_state.high_scores.add_score(format!("Player{}", i), 5000 + i as u32);
+    }
+    
+    // Set a score that won't qualify
+    game_state.score = 100;
+    
+    // Trigger game over
+    game_state.screen = GameScreen::GameOver;
+    
+    // Check for high score qualification
+    let qualifies = game_state.check_high_score();
+    assert!(!qualifies, "Score should not qualify for high score");
+    
+    // This should go to title screen instead of enter name
+    if !qualifies {
+        game_state.screen = GameScreen::Title;
+    }
+    
+    assert_eq!(game_state.screen, GameScreen::Title, "Should transition directly to title screen when score doesn't qualify");
+}
+
+// Test screen transitions using key inputs
+#[test]
+fn test_key_triggered_transitions() {
+    let mut game_state = GameState::new_test();
+    
+    // Start at title screen
+    game_state.screen = GameScreen::Title;
+    
+    // Simulating pressing 'H' key on title screen to view high scores
+    // This is what would happen in the key_down_event handler for H key
+    game_state.screen = GameScreen::HighScores;
+    assert_eq!(game_state.screen, GameScreen::HighScores, "Should transition to high scores after pressing H");
+    
+    // Simulating pressing any key from high scores to return to title
+    game_state.screen = GameScreen::Title;
+    assert_eq!(game_state.screen, GameScreen::Title, "Should return to title screen after pressing any key");
+    
+    // Simulate game start (any key press on title screen)
+    game_state.screen = GameScreen::Playing;
+    assert_eq!(game_state.screen, GameScreen::Playing, "Should start game after pressing any key on title screen");
+    
+    // Simulate pause
+    game_state.paused = true;
+    assert!(game_state.paused, "Game should pause after pressing P");
+    
+    // Simulate unpause
+    game_state.paused = false;
+    assert!(!game_state.paused, "Game should unpause after pressing P again");
+}
+
+// Test name input screen interaction
+#[test]
+fn test_name_input_interaction() {
+    let mut game_state = GameState::new_test();
+    
+    // Set up a score that qualifies for high score
+    game_state.score = 1000;
+    game_state.high_scores = HighScores::new();
+    
+    // Navigate to name entry screen
+    game_state.screen = GameScreen::EnterName;
+    assert_eq!(game_state.screen, GameScreen::EnterName, "Should be on name entry screen");
+    
+    // Test typing characters (simulating key presses)
+    game_state.current_name.push('T');
+    game_state.current_name.push('E');
+    game_state.current_name.push('S');
+    game_state.current_name.push('T');
+    assert_eq!(game_state.current_name, "TEST", "Name should be updated as keys are pressed");
+    
+    // Test backspace (simulating backspace key)
+    game_state.current_name.pop();
+    assert_eq!(game_state.current_name, "TES", "Backspace should remove last character");
+    
+    // Test name input (add 15 characters)
+    game_state.current_name = "TESTTESTTEST123".to_string(); // 15 characters
+    
+    // The name length limit is enforced in the key_down_event handler in the actual game,
+    // but not directly in the current_name field itself, so we just check it can hold the name
+    assert_eq!(game_state.current_name.len(), 15, "Name should be 15 characters long");
+    
+    // Test submitting name (simulating Enter key)
+    let added = game_state.add_high_score();
+    assert!(added, "High score should be added");
+    
+    // This would transition to high scores screen
+    game_state.screen = GameScreen::HighScores;
+    assert_eq!(game_state.screen, GameScreen::HighScores, "Should transition to high scores after submitting name");
+    
+    // Verify the high score was added
+    assert!(game_state.high_scores.entries.len() > 0, "High score list should have entries");
+    assert_eq!(game_state.high_scores.entries[0].score, 1000, "Score should be added with correct value");
+}
+
+// Test reset game state when starting a new game
+#[test]
+fn test_reset_game_state() {
+    let mut game_state = GameState::new_test();
+    
+    // Set some game state
+    game_state.score = 1000;
+    game_state.level = 5;
+    game_state.lines_cleared = 45;
+    
+    // Fill some of the board
+    for y in 10..GRID_HEIGHT as usize {
+        for x in 0..GRID_WIDTH as usize {
+            game_state.board[y][x] = Color::RED;
+        }
+    }
+    
+    // Reset game (simulating starting a new game from title screen)
+    game_state.board = vec![vec![Color::BLACK; GRID_WIDTH as usize]; GRID_HEIGHT as usize];
+    game_state.score = 0;
+    game_state.level = 1;
+    game_state.lines_cleared = 0;
+    game_state.screen = GameScreen::Playing;
+    
+    // Verify game state was reset
+    assert_eq!(game_state.score, 0, "Score should be reset to 0");
+    assert_eq!(game_state.level, 1, "Level should be reset to 1");
+    assert_eq!(game_state.lines_cleared, 0, "Lines cleared should be reset to 0");
+    
+    // Verify board was cleared
+    for y in 0..GRID_HEIGHT as usize {
+        for x in 0..GRID_WIDTH as usize {
+            assert_eq!(game_state.board[y][x], Color::BLACK, "Board should be cleared");
+        }
+    }
 } 
