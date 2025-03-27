@@ -1,13 +1,13 @@
 mod tetromino;
 mod sound_tests;
 mod constants;
+mod sound_manager;
 
 use ggez::{
     conf::{WindowMode, WindowSetup},
     event,
     graphics::{self, Color, Drawable},
     input::keyboard::{KeyCode, KeyInput},
-    audio::{self, SoundSource},
     Context, GameResult,
 };
 use tetromino::Tetromino;
@@ -15,106 +15,9 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use serde::{Serialize, Deserialize};
 use constants::*;
+use sound_manager::*;
 
-/// Sound effects for the game
-struct GameSounds {
-    move_sound: audio::Source,
-    rotate_sound: audio::Source,
-    drop_sound: audio::Source,
-    clear_sound: audio::Source,
-    tetris_sound: audio::Source,
-    game_over_sound: audio::Source,
-    background_music: Option<audio::Source>,
-    background_playing: bool,
-}
 
-impl GameSounds {
-    /// Loads all sound effects
-    fn new(ctx: &mut Context) -> GameResult<Self> {
-        // Create sources with paths relative to the resource directory
-        let move_sound = audio::Source::new(ctx, "/sounds/move.wav")?;
-        let rotate_sound = audio::Source::new(ctx, "/sounds/rotate.wav")?;
-        let drop_sound = audio::Source::new(ctx, "/sounds/drop.wav")?;
-        let clear_sound = audio::Source::new(ctx, "/sounds/clear.wav")?;
-        let tetris_sound = audio::Source::new(ctx, "/sounds/tetris.wav")?;
-        let game_over_sound = audio::Source::new(ctx, "/sounds/game_over.wav")?;
-
-        Ok(Self {
-            move_sound,
-            rotate_sound,
-            drop_sound,
-            clear_sound,
-            tetris_sound,
-            game_over_sound,
-            background_music: None,
-            background_playing: false,
-        })
-    }
-
-    /// Plays a sound effect
-    fn play_move(&mut self, ctx: &mut Context) -> GameResult {
-        self.move_sound.play_detached(ctx)
-    }
-
-    fn play_rotate(&mut self, ctx: &mut Context) -> GameResult {
-        self.rotate_sound.play_detached(ctx)
-    }
-
-    fn play_drop(&mut self, ctx: &mut Context) -> GameResult {
-        self.drop_sound.play_detached(ctx)
-    }
-
-    fn play_clear(&mut self, ctx: &mut Context) -> GameResult {
-        self.clear_sound.play_detached(ctx)
-    }
-
-    fn play_tetris(&mut self, ctx: &mut Context) -> GameResult {
-        self.tetris_sound.play_detached(ctx)
-    }
-
-    fn play_game_over(&mut self, ctx: &mut Context) -> GameResult {
-        self.game_over_sound.play_detached(ctx)
-    }
-
-    fn stop_background_music(&mut self, ctx: &mut Context) {
-        // If we have a music source, stop it
-        if let Some(music) = &mut self.background_music {
-            music.stop(ctx).unwrap();
-        }
-        // Set the flag to false and remove the source
-        self.background_playing = false;
-        self.background_music = None;
-    }
-
-    fn start_background_music(&mut self, ctx: &mut Context) -> GameResult {
-        // Only start if not already playing
-        if !self.background_playing {
-            // Create a completely new source
-            let mut music = audio::Source::new(ctx, "/sounds/background.wav")?;
-            
-            // Set up the new source
-            music.set_repeat(true);
-            
-            // Play the music (using play instead of play_detached)
-            music.play(ctx)?;
-            
-            // Store the source and update state
-            self.background_music = Some(music);
-            self.background_playing = true;
-        }
-        Ok(())
-    }
-
-    /// Ensures background music is playing if it should be
-    #[allow(dead_code)]
-    fn ensure_background_music(&mut self, ctx: &mut Context) -> GameResult {
-        // Make sure music is playing if it's supposed to be
-        if self.background_playing && self.background_music.is_none() {
-            self.start_background_music(ctx)?;
-        }
-        Ok(())
-    }
-}
 
 // Game screen states
 #[derive(PartialEq, Clone, Copy)]
@@ -267,7 +170,7 @@ impl GameState {
         let new_piece = self.next_piece.clone();
         if self.check_collision(&new_piece) {
             self.screen = GameScreen::GameOver;
-            self.sounds.play_game_over(ctx).unwrap();
+            self.sounds.play_sound(ctx, "game_over").unwrap();
             
             // Immediately check if the player qualifies for high score
             // This ensures the transition happens without requiring a key press
@@ -315,7 +218,7 @@ impl GameState {
         
         if !self.check_collision(&new_piece) {
             self.current_piece = Some(new_piece);
-            self.sounds.play_move(ctx).unwrap();
+            self.sounds.play_sound(ctx, "move").unwrap();
             true
         } else {
             false
@@ -342,7 +245,7 @@ impl GameState {
             
             if !self.check_collision(&test_piece) {
                 self.current_piece = Some(test_piece);
-                self.sounds.play_rotate(ctx).unwrap();
+                self.sounds.play_sound(ctx, "rotate").unwrap();
                 return;
             }
         }
@@ -372,9 +275,9 @@ impl GameState {
             
             // Play appropriate sound based on number of lines cleared
             if lines_cleared == 4 {
-                self.sounds.play_tetris(ctx).unwrap();
+                self.sounds.play_sound(ctx, "tetris").unwrap();
             } else {
-                self.sounds.play_clear(ctx).unwrap();
+                self.sounds.play_sound(ctx, "clear").unwrap();
             }
         }
 
@@ -405,7 +308,7 @@ impl GameState {
         self.add_drop_points(cells_dropped as i32);
         
         self.current_piece = Some(new_piece);
-        self.sounds.play_drop(ctx).unwrap();
+        self.sounds.play_sound(ctx, "drop").unwrap();
         self.lock_piece(ctx);
     }
 
@@ -429,10 +332,10 @@ impl GameState {
                 }
             }
         }
-        self.sounds.play_drop(ctx).unwrap();
+        self.sounds.play_sound(ctx, "lock").unwrap();
         let lines_cleared = self.clear_lines(ctx);
         if lines_cleared > 0 {
-            self.sounds.play_clear(ctx).unwrap();
+            self.sounds.play_sound(ctx, "clear").unwrap();
         }
         self.spawn_new_piece(ctx);
     }
