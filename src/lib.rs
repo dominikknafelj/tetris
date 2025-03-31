@@ -1,7 +1,6 @@
 pub mod tetromino;
-pub mod sound_tests;
 pub mod constants;
-pub mod sound_manager;
+pub mod sound;
 
 pub mod test_event;
 
@@ -15,7 +14,7 @@ pub use board::GameBoard;
 pub use score::{HighScores, HighScoreEntry};
 pub use tetromino::Tetromino;
 pub use ui::GameRenderer;
-pub use sound_manager::GameSounds;
+pub use sound::GameSounds;
 
 // Export the game screen states
 #[derive(PartialEq, Clone, Copy, Debug)]

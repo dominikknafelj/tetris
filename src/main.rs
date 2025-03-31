@@ -12,7 +12,7 @@ use tetris::{
         SCREEN_HEIGHT, SCREEN_WIDTH, SCORE_DOUBLE, SCORE_DROP, SCORE_SINGLE, SCORE_TETRIS, SCORE_TRIPLE,
     },
     score::HighScores,
-    sound_manager::GameSounds,
+    sound::GameSounds,
     tetromino::Tetromino,
     ui::GameRenderer,
     GameScreen,
@@ -687,7 +687,7 @@ pub fn main() -> GameResult {
     env_logger::init();
     
     println!("Starting Tetris...");
-    println!("Note: Game will attempt to load sound files from resources/sounds directory");
+    println!("Note: Game will attempt to load sound files from resources/audio directory");
     
     let resource_dir = if cfg!(debug_assertions) {
         std::path::PathBuf::from(".")
