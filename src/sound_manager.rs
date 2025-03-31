@@ -1,74 +1,89 @@
 use std::collections::HashMap;
 use ggez::{audio::{self, SoundSource}, Context, GameResult};
-use std::sync::Once;
-use std::sync::Mutex;
 
 /// Manages sound effects and background music for the game.
+#[derive(Debug)]
 pub struct GameSounds {
     /// A map of sound effect names to their audio sources.
-    sounds: HashMap<String, audio::Source>,
+    sounds: HashMap<String, Option<audio::Source>>,
     /// The background music source, loaded once and reused.
-    background_music: audio::Source,
+    background_music: Option<audio::Source>,
     /// Flag indicating whether the background music is currently playing.
     pub background_playing: bool,
 }
 
 impl GameSounds {
-    /// Creates a new `GameSounds` instance, loading all sound effects and background music.
+    /// Creates a new GameSounds manager and loads all required sounds.
     pub fn new(ctx: &mut Context) -> GameResult<Self> {
-        // Use a HashMap to store sound effects for easy access and scalability.
+        // Create a map to hold all sound effects.
         let mut sounds = HashMap::new();
-        sounds.insert("move".to_string(), audio::Source::new(ctx, "sounds/move.wav")?);
-        sounds.insert("rotate".to_string(), audio::Source::new(ctx, "sounds/rotate.wav")?);
-        sounds.insert("drop".to_string(), audio::Source::new(ctx, "sounds/drop.wav")?);
-        sounds.insert("clear".to_string(), audio::Source::new(ctx, "sounds/clear.wav")?);
-        sounds.insert("tetris".to_string(), audio::Source::new(ctx, "sounds/tetris.wav")?);
-        sounds.insert("game_over".to_string(), audio::Source::new(ctx, "sounds/game_over.wav")?);
-
-        // Load the background music once and set it to repeat indefinitely.
-        let mut background_music = audio::Source::new(ctx, "sounds/background.wav")?;
-        background_music.set_repeat(true);
-
+        
+        // Load sound effects with error handling - empty sound files will just be None
+        let sound_names = [
+            "move", "rotate", "drop", "clear", "tetris", "lock", "game_over"
+        ];
+        
+        for name in sound_names.iter() {
+            let source = audio::Source::new(ctx, format!("/sounds/{}.wav", name));
+            match source {
+                Ok(src) => sounds.insert(name.to_string(), Some(src)),
+                Err(e) => {
+                    eprintln!("Failed to load sound {}: {}", name, e);
+                    sounds.insert(name.to_string(), None)
+                }
+            };
+        }
+        
+        // Load background music with error handling
+        let background_music = match audio::Source::new(ctx, "/sounds/theme.wav") {
+            Ok(mut src) => {
+                src.set_repeat(true);
+                Some(src)
+            },
+            Err(e) => {
+                eprintln!("Failed to load background music: {}", e);
+                None
+            }
+        };
+        
         Ok(Self {
             sounds,
             background_music,
             background_playing: false,
         })
     }
-
+    
     /// Plays a sound effect by name.
-    /// 
-    /// This method allows for a single function to handle all sound effects,
-    /// reducing code duplication and making it easier to add new sounds.
-    pub fn play_sound(&mut self, ctx: &mut Context, sound_name: &str) -> GameResult {
-        if let Some(sound) = self.sounds.get_mut(sound_name) {
-            // Play the sound detached so it doesn't block the main thread.
-            sound.play_detached(ctx)?;
+    pub fn play_sound(&mut self, ctx: &mut Context, name: &str) -> GameResult {
+        if let Some(Some(sound)) = self.sounds.get_mut(name) {
+            let _ = sound.play_detached(ctx); // Ignore any play errors
         }
         Ok(())
     }
-
-    /// Starts the background music if it's not already playing.
-    /// 
-    /// Reuses the pre-loaded `background_music` source instead of reloading it,
-    /// which improves performance by avoiding repeated file I/O operations.
+    
+    /// Starts playing the background music.
     pub fn start_background_music(&mut self, ctx: &mut Context) -> GameResult {
         if !self.background_playing {
-            // Play the pre-loaded background music.
-            self.background_music.play(ctx)?;
-            self.background_playing = true;
+            // Play the pre-loaded background music if available
+            if let Some(music) = &mut self.background_music {
+                if let Err(e) = music.play(ctx) {
+                    eprintln!("Failed to start background music: {}", e);
+                } else {
+                    self.background_playing = true;
+                }
+            }
         }
         Ok(())
     }
-
-    /// Stops the background music if it's currently playing.
-    /// 
-    /// Handles errors gracefully instead of panicking, improving robustness.
+    
+    /// Stops the background music.
     pub fn stop_background_music(&mut self, ctx: &mut Context) {
         if self.background_playing {
             // Attempt to stop the music and log any errors without crashing.
-            if let Err(e) = self.background_music.stop(ctx) {
-                eprintln!("Failed to stop background music: {}", e);
+            if let Some(music) = &mut self.background_music {
+                if let Err(e) = music.stop(ctx) {
+                    eprintln!("Failed to stop background music: {}", e);
+                }
             }
             self.background_playing = false;
         }
