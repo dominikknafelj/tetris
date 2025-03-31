@@ -1603,3 +1603,298 @@ fn test_game_over_screen_elements() {
     assert!(game_state.show_text || !game_state.show_text, "Show text should be a boolean");
 }
 
+// High score related tests
+mod high_score_tests {
+    use tetris::{
+        constants::MAX_HIGH_SCORES,
+        score::HighScores,
+    };
+    
+    #[test]
+    fn test_high_score_new() {
+        let scores = HighScores::new();
+        assert_eq!(scores.entries().len(), 0, "New high scores should be empty");
+    }
+    
+    #[test]
+    fn test_add_single_high_score() {
+        let mut high_scores = HighScores::new();
+        
+        // Add a single score
+        assert!(high_scores.add_score("Player1".to_string(), 1000), "Adding first score should succeed");
+        
+        // Verify score was added correctly
+        assert_eq!(high_scores.entries().len(), 1, "Should have 1 high score entry");
+        assert_eq!(high_scores.entries()[0].name, "Player1", "First entry should have correct name");
+        assert_eq!(high_scores.entries()[0].score, 1000, "First entry should have correct score");
+        
+        // Add a higher score
+        assert!(high_scores.add_score("Player2".to_string(), 2000), "Adding higher score should succeed");
+        
+        // Verify scores are sorted by score (descending)
+        assert_eq!(high_scores.entries().len(), 2, "Should have 2 high score entries");
+        assert_eq!(high_scores.entries()[0].name, "Player2", "Highest score should be first");
+        assert_eq!(high_scores.entries()[0].score, 2000, "Highest score should be 2000");
+        
+        // Add a lower score
+        assert!(high_scores.add_score("Player3".to_string(), 500), "Adding lower score should succeed");
+        
+        // Verify lower score is at the end
+        assert_eq!(high_scores.entries().len(), 3, "Should have 3 high score entries");
+        assert_eq!(high_scores.entries()[2].name, "Player3", "Lowest score should be last");
+    }
+    
+    #[test]
+    fn test_would_qualify() {
+        let mut high_scores = HighScores::new();
+        
+        // Empty list - any score should qualify
+        assert!(high_scores.would_qualify(0), "Any score should qualify for empty list");
+        
+        // Add scores up to max
+        for i in 0..MAX_HIGH_SCORES {
+            high_scores.add_score(format!("Player{}", i), (i as u32 + 1) * 100);
+        }
+        
+        assert_eq!(high_scores.entries().len(), MAX_HIGH_SCORES, "High score list should be full");
+        
+        // Lower than lowest score shouldn't qualify
+        assert!(!high_scores.would_qualify(50), "Score lower than all existing scores shouldn't qualify");
+        
+        // Higher than lowest score should qualify
+        assert!(high_scores.would_qualify(200), "Score higher than lowest score should qualify");
+    }
+    
+    #[test]
+    fn test_max_scores() {
+        let mut high_scores = HighScores::new();
+        
+        // Fill the list
+        for i in 0..MAX_HIGH_SCORES {
+            high_scores.add_score(format!("Player{}", i), (i as u32 + 1) * 100);
+        }
+        
+        // Get the minimum score
+        let min_score = high_scores.entries().last().unwrap().score;
+        
+        // Add a higher score - should replace the lowest
+        high_scores.add_score("NewPlayer".to_string(), min_score + 50);
+        assert_eq!(high_scores.entries().len(), MAX_HIGH_SCORES, "List should still have max entries");
+        
+        // The lowest score should now be different
+        assert!(high_scores.entries().last().unwrap().score > min_score, "Lowest score should be higher now");
+    }
+}
+
+// Tetromino related tests
+mod tetromino_tests {
+    use tetris::tetromino::{Tetromino, TetrominoType};
+    
+    #[test]
+    fn test_tetromino_creation() {
+        // Test I piece
+        let i_piece = Tetromino::new(TetrominoType::I);
+        assert!(i_piece.shape.iter().any(|row| row.iter().any(|&cell| cell)), "I piece should have at least one filled cell");
+        
+        // Verify unique shapes
+        let t_piece = Tetromino::new(TetrominoType::T);
+        let z_piece = Tetromino::new(TetrominoType::Z);
+        assert_ne!(i_piece.shape, t_piece.shape, "I and T pieces should have different shapes");
+        assert_ne!(i_piece.shape, z_piece.shape, "I and Z pieces should have different shapes");
+        assert_ne!(t_piece.shape, z_piece.shape, "T and Z pieces should have different shapes");
+    }
+    
+    #[test]
+    fn test_tetromino_rotation() {
+        // Test I piece rotation (1×4 <-> 4×1)
+        let mut piece = Tetromino::new(TetrominoType::I);
+        let original_shape = piece.shape.clone();
+        
+        // Rotate once
+        piece.rotate();
+        assert_ne!(&piece.shape, &original_shape, "I piece should have different shape after rotation");
+        
+        // Rotate three more times to return to original orientation
+        piece.rotate();
+        piece.rotate();
+        piece.rotate();
+        assert_eq!(piece.shape, original_shape, "I piece should return to original shape after 4 rotations");
+    }
+    
+    #[test]
+    fn test_tetromino_start_position() {
+        // Tetrominoes should start at the top center of the board
+        let piece = Tetromino::new(TetrominoType::T);
+        assert_eq!(piece.position.x.round() as i32, 3, "Piece should start at x position 3");
+        assert_eq!(piece.position.y.round() as i32, 0, "Piece should start at y position 0");
+    }
+}
+
+// Board-related tests
+mod board_tests {
+    use tetris::{
+        board::GameBoard,
+        constants::{GRID_WIDTH, GRID_HEIGHT},
+        tetromino::{Tetromino, TetrominoType},
+    };
+    use ggez::graphics::Color;
+    
+    #[test]
+    fn test_empty_board() {
+        let board = GameBoard::new();
+        
+        // All cells should be empty (black)
+        for y in 0..GRID_HEIGHT {
+            for x in 0..GRID_WIDTH {
+                assert_eq!(board.get_cell(x, y).unwrap(), Color::BLACK, "New board should have all black cells");
+            }
+        }
+    }
+    
+    #[test]
+    fn test_set_cell() {
+        let mut board = GameBoard::new();
+        let test_color = Color::RED;
+        
+        // Set a cell in the middle of the board
+        assert!(board.set_cell(5, 5, test_color), "Setting cell within bounds should succeed");
+        assert_eq!(board.get_cell(5, 5).unwrap(), test_color, "Cell color should match what was set");
+        
+        // Test out of bounds
+        assert!(!board.set_cell(-1, 5, test_color), "Setting cell outside bounds should fail");
+        assert!(!board.set_cell(GRID_WIDTH, 5, test_color), "Setting cell outside bounds should fail");
+        assert!(!board.set_cell(5, -1, test_color), "Setting cell outside bounds should fail");
+        assert!(!board.set_cell(5, GRID_HEIGHT, test_color), "Setting cell outside bounds should fail");
+    }
+    
+    #[test]
+    fn test_clear_lines() {
+        let mut board = GameBoard::new();
+        
+        // Fill a line
+        for x in 0..GRID_WIDTH {
+            board.set_cell(x, 10, Color::RED);
+        }
+        
+        // Clear lines
+        let lines = board.clear_lines();
+        assert_eq!(lines, 1, "Should clear exactly one line");
+        
+        // Verify line was cleared
+        for x in 0..GRID_WIDTH {
+            assert_eq!(board.get_cell(x, 10).unwrap(), Color::BLACK, "Cleared line should be empty");
+        }
+    }
+    
+    #[test]
+    fn test_collision_detection() {
+        let mut board = GameBoard::new();
+        
+        // Place a block on the board
+        board.set_cell(5, 5, Color::RED);
+        
+        // Create pieces
+        let mut piece_at_collision = Tetromino::new(TetrominoType::I);
+        piece_at_collision.position.x = 4.0;
+        piece_at_collision.position.y = 5.0;
+        
+        let mut piece_no_collision = Tetromino::new(TetrominoType::I);
+        piece_no_collision.position.x = 0.0;
+        piece_no_collision.position.y = 0.0;
+        
+        // Test collision
+        assert!(board.check_collision(&piece_at_collision), "Piece overlapping filled cell should collide");
+        assert!(!board.check_collision(&piece_no_collision), "Piece in empty area should not collide");
+    }
+    
+    #[test]
+    fn test_lock_piece() {
+        let mut board = GameBoard::new();
+        let mut piece = Tetromino::new(TetrominoType::I);
+        
+        // Position the piece
+        piece.position.x = 3.0;
+        piece.position.y = 5.0;
+        
+        // Lock the piece
+        board.lock_piece(&piece);
+        
+        // Verify cells are filled with the piece's color
+        for i in 0..4 {
+            assert_eq!(board.get_cell(3 + i, 5).unwrap(), piece.color, "Cell should be filled with piece color");
+        }
+    }
+}
+
+// Rotation tests
+mod rotation_tests {
+    use tetris::tetromino::{Tetromino, TetrominoType};
+    
+    #[test]
+    fn test_i_piece_rotation() {
+        let mut piece = Tetromino::new(TetrominoType::I);
+        let original_shape = piece.shape.clone();
+        
+        // First rotation
+        piece.rotate();
+        assert_ne!(&piece.shape, &original_shape, "I piece should have different shape after rotation");
+        
+        // Second rotation
+        piece.rotate();
+        
+        // Third rotation
+        piece.rotate();
+        
+        // Fourth rotation - should be back to original
+        piece.rotate();
+        assert_eq!(piece.shape, original_shape, "I piece should match original shape after 4 rotations");
+    }
+    
+    #[test]
+    fn test_o_piece_rotation() {
+        // O piece should not change shape when rotated
+        let mut piece = Tetromino::new(TetrominoType::O);
+        let original_shape = piece.shape.clone();
+        
+        // Rotate
+        piece.rotate();
+        assert_eq!(piece.shape, original_shape, "O piece should not change when rotated");
+    }
+    
+    #[test]
+    fn test_t_piece_rotation() {
+        // T piece should have 4 unique orientations
+        let mut piece = Tetromino::new(TetrominoType::T);
+        let original_shape = piece.shape.clone();
+        let mut orientations = Vec::new();
+        
+        // Check all 4 orientations
+        for _ in 0..4 {
+            orientations.push(piece.shape.clone());
+            piece.rotate();
+        }
+        
+        // Back to original
+        assert_eq!(piece.shape, original_shape, "T piece should return to original shape after 4 rotations");
+        
+        // Should have 4 unique orientations
+        let unique_orientations: std::collections::HashSet<_> = orientations.into_iter().collect();
+        assert_eq!(unique_orientations.len(), 4, "T piece should have 4 unique orientations");
+    }
+}
+
+// Movement tests
+mod movement_tests {
+    use tetris::tetromino::{Tetromino, TetrominoType};
+    
+    #[test]
+    fn test_move_down() {
+        let mut piece = Tetromino::new(TetrominoType::I);
+        let orig_y = piece.position.y;
+        
+        // Move down
+        piece.move_down();
+        assert_eq!(piece.position.y, orig_y + 1.0, "Piece should move down by 1 unit");
+    }
+}
+

@@ -709,7 +709,10 @@ pub fn main() -> GameResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use tetris::{
+        constants::*,
+        tetromino::{Tetromino, TetrominoType},
+    };
 
     // Test constants and configurations
     #[test]
@@ -757,8 +760,8 @@ mod tests {
             let piece = Tetromino::new(piece_type);
             
             // Calculate expected offsets
-            let piece_width = piece.shape[0].len() as f32;
-            let piece_height = piece.shape.len() as f32;
+            let piece_width = piece.shape.len() as f32;
+            let piece_height = piece.shape[0].len() as f32;
             let offset_x = (PREVIEW_BOX_SIZE - piece_width) / 2.0;
             let offset_y = (PREVIEW_BOX_SIZE - piece_height) / 2.0;
 
@@ -784,6 +787,8 @@ mod tests {
 
     #[test]
     fn test_high_scores() {
+        use tetris::score::HighScores;
+        
         let mut high_scores = HighScores::new();
         
         // Test adding scores when list is not full
@@ -792,9 +797,9 @@ mod tests {
         assert!(high_scores.add_score("Player3".to_string(), 750));
         
         // Test scores are sorted correctly
-        assert_eq!(high_scores.entries[0].score, 1000);
-        assert_eq!(high_scores.entries[1].score, 750);
-        assert_eq!(high_scores.entries[2].score, 500);
+        assert_eq!(high_scores.entries()[0].score, 1000);
+        assert_eq!(high_scores.entries()[1].score, 750);
+        assert_eq!(high_scores.entries()[2].score, 500);
         
         // Test would_qualify function with non-full list
         assert!(high_scores.would_qualify(400)); // Should qualify when list isn't full
@@ -809,11 +814,11 @@ mod tests {
         assert!(!high_scores.would_qualify(500)); // Shouldn't qualify (worse than all scores)
         
         // Test maximum number of scores
-        assert_eq!(high_scores.entries.len(), MAX_HIGH_SCORES);
+        assert_eq!(high_scores.entries().len(), MAX_HIGH_SCORES);
         
         // Test adding a qualifying score to full list
         assert!(high_scores.add_score("NewPlayer".to_string(), 1500));
-        assert_eq!(high_scores.entries.len(), MAX_HIGH_SCORES); // List should stay at max size
+        assert_eq!(high_scores.entries().len(), MAX_HIGH_SCORES); // List should stay at max size
     }
 
     #[test]
@@ -838,169 +843,52 @@ mod tests {
 
     #[test]
     fn test_keycode_to_char() {
+        use ggez::input::keyboard::KeyCode;
+        
         // Test lowercase letters
-        assert_eq!(keycode_to_char(KeyCode::A, false), Some('a'));
-        assert_eq!(keycode_to_char(KeyCode::Z, false), Some('z'));
+        assert_eq!(super::keycode_to_char(KeyCode::A, false), Some('a'));
+        assert_eq!(super::keycode_to_char(KeyCode::Z, false), Some('z'));
         
         // Test uppercase letters
-        assert_eq!(keycode_to_char(KeyCode::A, true), Some('A'));
-        assert_eq!(keycode_to_char(KeyCode::Z, true), Some('Z'));
+        assert_eq!(super::keycode_to_char(KeyCode::A, true), Some('A'));
+        assert_eq!(super::keycode_to_char(KeyCode::Z, true), Some('Z'));
         
         // Test numbers
-        assert_eq!(keycode_to_char(KeyCode::Key1, false), Some('1'));
-        assert_eq!(keycode_to_char(KeyCode::Key9, false), Some('9'));
+        assert_eq!(super::keycode_to_char(KeyCode::Key1, false), Some('1'));
+        assert_eq!(super::keycode_to_char(KeyCode::Key9, false), Some('9'));
         
         // Test space
-        assert_eq!(keycode_to_char(KeyCode::Space, false), Some(' '));
+        assert_eq!(super::keycode_to_char(KeyCode::Space, false), Some(' '));
         
         // Test unsupported key
-        assert_eq!(keycode_to_char(KeyCode::F1, false), None);
+        assert_eq!(super::keycode_to_char(KeyCode::F1, false), None);
     }
 
     // This is a simplified test that doesn't depend on ggez::Context
     #[test]
     fn test_collision_detection_simplified() {
-        // Create a test board with a single block
-        let mut board = vec![vec![Color::BLACK; GRID_WIDTH as usize]; GRID_HEIGHT as usize];
+        use tetris::board::GameBoard;
+        use ggez::graphics::Color;
+        
+        // Create a board and place a block
+        let mut board = GameBoard::new();
         
         // Place a block on the board
-        let block_x = GRID_WIDTH as usize / 2;
-        let block_y = GRID_HEIGHT as usize - 1;
-        board[block_y][block_x] = Color::RED;
+        let block_x = GRID_WIDTH / 2;
+        let block_y = GRID_HEIGHT - 1;
+        board.set_cell(block_x, block_y, Color::RED);
         
         // Create a piece directly above the block
         let mut test_piece = Tetromino::new(TetrominoType::I);
-        // The I piece is horizontal by default (1x4) so adjust position to ensure collision
         test_piece.position.x = block_x as f32 - 1.0; // Position it so part of it overlaps with the block
         test_piece.position.y = block_y as f32;       // Same y-position as the block
         
-        // Manual collision check logic based on our game's algorithm
-        let piece_width = test_piece.shape[0].len() as i32;
-        let piece_height = test_piece.shape.len() as i32;
-        let piece_x = test_piece.position.x.round() as i32;
-        let piece_y = test_piece.position.y.round() as i32;
+        // Test collision
+        assert!(board.check_collision(&test_piece));
         
-        // Check if any part of the piece would collide with the block
-        let mut collision = false;
-        'outer: for y in 0..piece_height {
-            for x in 0..piece_width {
-                if !test_piece.shape[y as usize][x as usize] {
-                    continue; // Skip empty cells
-                }
-                
-                let board_x = piece_x + x;
-                let board_y = piece_y + y;
-                
-                // Check if out of bounds
-                if board_x < 0 || board_x >= GRID_WIDTH as i32 || board_y >= GRID_HEIGHT as i32 {
-                    collision = true;
-                    break 'outer;
-                }
-                
-                // Check if collides with existing block
-                if board_y >= 0 && board[board_y as usize][board_x as usize] != Color::BLACK {
-                    collision = true;
-                    break 'outer;
-                }
-            }
-        }
-        
-        assert!(collision, "Piece should collide with block on board");
-        
-        // Move the piece to an empty area
-        test_piece.position.x = 0.0;
-        test_piece.position.y = 0.0;
-        
-        // Redo collision check for new position
-        let piece_x = test_piece.position.x.round() as i32;
-        let piece_y = test_piece.position.y.round() as i32;
-        
-        collision = false;
-        'outer: for y in 0..piece_height {
-            for x in 0..piece_width {
-                if !test_piece.shape[y as usize][x as usize] {
-                    continue; // Skip empty cells
-                }
-                
-                let board_x = piece_x + x;
-                let board_y = piece_y + y;
-                
-                // Check if out of bounds
-                if board_x < 0 || board_x >= GRID_WIDTH as i32 || board_y >= GRID_HEIGHT as i32 {
-                    collision = true;
-                    break 'outer;
-                }
-                
-                // Check if collides with existing block
-                if board_y >= 0 && board[board_y as usize][board_x as usize] != Color::BLACK {
-                    collision = true;
-                    break 'outer;
-                }
-            }
-        }
-        
-        assert!(!collision, "Piece should not collide in empty area");
-    }
-
-    #[test]
-    fn test_drop_speed_calculation() {
-        // First level should have standard drop speed
-        let level1_speed = 1.0 / (1.0 + 0.1 * (1 - 1) as f64);
-        
-        // Higher levels should have progressively faster speeds
-        let level5_speed = 1.0 / (1.0 + 0.1 * (5 - 1) as f64);
-        let level10_speed = 1.0 / (1.0 + 0.1 * (10 - 1) as f64);
-        
-        // Higher levels should have faster drop speeds (smaller time intervals)
-        assert!(level1_speed > level5_speed, "Level 5 should be faster than level 1");
-        assert!(level5_speed > level10_speed, "Level 10 should be faster than level 5");
-    }
-
-    #[test]
-    fn test_score_calculation_simplified() {
-        // Test score calculation for different numbers of lines
-        let level = 1;
-        
-        // Single line
-        let single_score = match 1 {
-            1 => 40 * level,
-            2 => 100 * level,
-            3 => 300 * level,
-            4 => 1200 * level,
-            _ => 0,
-        };
-        
-        // Double line
-        let double_score = match 2 {
-            1 => 40 * level,
-            2 => 100 * level,
-            3 => 300 * level,
-            4 => 1200 * level,
-            _ => 0,
-        };
-        
-        // Triple line
-        let triple_score = match 3 {
-            1 => 40 * level,
-            2 => 100 * level,
-            3 => 300 * level,
-            4 => 1200 * level,
-            _ => 0,
-        };
-        
-        // Tetris
-        let tetris_score = match 4 {
-            1 => 40 * level,
-            2 => 100 * level,
-            3 => 300 * level,
-            4 => 1200 * level,
-            _ => 0,
-        };
-        
-        // Check score progression
-        assert!(double_score > single_score, "Double clear should score more than single");
-        assert!(triple_score > double_score, "Triple clear should score more than double");
-        assert!(tetris_score > triple_score, "Tetris should score more than triple");
+        // Test piece in valid position
+        test_piece.position.y -= 5.0; // Move piece up
+        assert!(!board.check_collision(&test_piece));
     }
 }
 

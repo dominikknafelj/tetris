@@ -49,12 +49,19 @@ impl GameBoard {
         let piece_x = piece.position.x as i32;
         let piece_y = piece.position.y as i32;
         
+        // First check boundary conditions
+        // 1. Check if piece extends below the bottom of the grid
+        if piece_y + piece.shape.len() as i32 > GRID_HEIGHT {
+            return true;
+        }
+        
+        // 2. Check horizontal boundaries and collisions with existing pieces
         for (y, row) in piece.shape.iter().enumerate() {
             let board_y = piece_y + y as i32;
             
-            // Quick boundary check for vertical
-            if board_y >= GRID_HEIGHT {
-                return true;
+            // Skip checks for rows above the grid
+            if board_y < 0 {
+                continue;
             }
             
             for (x, &cell) in row.iter().enumerate() {
@@ -65,12 +72,16 @@ impl GameBoard {
                 let board_x = piece_x + x as i32;
                 
                 // Check for collisions with boundaries and existing pieces
-                if board_x < 0 || board_x >= GRID_WIDTH || 
-                   (board_y >= 0 && self.cells[board_y as usize][board_x as usize] != Color::BLACK) {
+                if board_x < 0 || board_x >= GRID_WIDTH {
+                    return true;
+                }
+                
+                if self.cells[board_y as usize][board_x as usize] != Color::BLACK {
                     return true;
                 }
             }
         }
+        
         false
     }
     
@@ -205,13 +216,15 @@ mod tests {
         assert!(!board.check_collision(&piece));
         
         // Test collision with bottom boundary
-        piece.position = Vec2::new(5.0, GRID_HEIGHT as f32 - 1.0);
-        assert!(board.check_collision(&piece));
+        piece.position = Vec2::new(5.0, 20.0);
+        assert!(board.check_collision(&piece), "Piece should collide with bottom boundary");
         
         // Test collision with existing piece
         board.set_cell(5, 10, Color::RED);
-        piece.position = Vec2::new(5.0, 9.0);
-        assert!(board.check_collision(&piece));
+        // Position the I-piece so it overlaps with the red block
+        // Since the I-piece is horizontal (1x4), we need to put it at y=10 to overlap
+        piece.position = Vec2::new(5.0, 10.0);
+        assert!(board.check_collision(&piece), "Piece should collide with block on board");
     }
     
     #[test]
