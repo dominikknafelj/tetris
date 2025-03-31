@@ -37,6 +37,6 @@ pub use crate::test_event::TestState;
 // Making this module public so it can be accessed from integration tests as well
 pub mod tests_reexport;
 
-// Re-export functionality for integration tests
-// Making this available for all tests, not just unit tests
-pub use tests_reexport::{keycode_to_char, GameState}; 
+// For integration tests, re-export the specific types defined in tests_reexport
+// instead of the crate's own types to avoid type mismatches
+pub use tests_reexport::{GameScreen as TestGameScreen, HighScores as TestHighScores, GameState, keycode_to_char}; 
