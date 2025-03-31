@@ -1,6 +1,12 @@
 use ggez::graphics::Color;
 use ggez::input::keyboard::KeyCode;
-use tetris::{GameState, Tetromino, TetrominoType, keycode_to_char, HighScores, GameScreen};
+// Import everything with explicit namespace to avoid conflicts
+use tetris;
+use tetris::tetromino::{Tetromino, TetrominoType};
+use tetris::keycode_to_char;
+use tetris::GameState;
+use tetris::HighScores;
+use tetris::GameScreen;
 
 // Import constants from the tests_reexport module
 const GRID_WIDTH: i32 = 10;
@@ -316,20 +322,20 @@ fn test_high_scores() {
     // Test adding a score to an empty list
     let added = high_scores.add_score("Player1".to_string(), 1000);
     assert!(added, "First score should be added successfully");
-    assert_eq!(high_scores.entries.len(), 1, "Should have 1 high score entry");
-    assert_eq!(high_scores.entries[0].name, "Player1", "First entry should have correct name");
-    assert_eq!(high_scores.entries[0].score, 1000, "First entry should have correct score");
+    assert_eq!(high_scores.entries().len(), 1, "Should have 1 high score entry");
+    assert_eq!(high_scores.entries()[0].name, "Player1", "First entry should have correct name");
+    assert_eq!(high_scores.entries()[0].score, 1000, "First entry should have correct score");
     
     // Test adding a higher score
     high_scores.add_score("Player2".to_string(), 2000);
-    assert_eq!(high_scores.entries.len(), 2, "Should have 2 high score entries");
-    assert_eq!(high_scores.entries[0].name, "Player2", "Highest score should be first");
-    assert_eq!(high_scores.entries[0].score, 2000, "Highest score should be 2000");
+    assert_eq!(high_scores.entries().len(), 2, "Should have 2 high score entries");
+    assert_eq!(high_scores.entries()[0].name, "Player2", "Highest score should be first");
+    assert_eq!(high_scores.entries()[0].score, 2000, "Highest score should be 2000");
     
     // Test adding a lower score
     high_scores.add_score("Player3".to_string(), 500);
-    assert_eq!(high_scores.entries.len(), 3, "Should have 3 high score entries");
-    assert_eq!(high_scores.entries[2].name, "Player3", "Lowest score should be last");
+    assert_eq!(high_scores.entries().len(), 3, "Should have 3 high score entries");
+    assert_eq!(high_scores.entries()[2].name, "Player3", "Lowest score should be last");
     
     // Test would_qualify function
     assert!(high_scores.would_qualify(3000), "3000 points should qualify");
@@ -341,7 +347,7 @@ fn test_high_scores() {
     }
     
     // Test with a full list
-    assert_eq!(high_scores.entries.len(), MAX_HIGH_SCORES, "High score list should be full");
+    assert_eq!(high_scores.entries().len(), MAX_HIGH_SCORES, "High score list should be full");
     
     // Test that a low score doesn't qualify anymore
     assert!(!high_scores.would_qualify(50), "50 points should not qualify");
@@ -350,10 +356,10 @@ fn test_high_scores() {
     assert!(high_scores.would_qualify(3000), "3000 points should still qualify");
     
     // Test adding a score that qualifies when the list is full
-    let min_score = high_scores.entries.last().unwrap().score;
+    let min_score = high_scores.entries().last().unwrap().score;
     let added = high_scores.add_score("NewPlayer".to_string(), min_score + 100);
     assert!(added, "Score higher than minimum should be added");
-    assert_eq!(high_scores.entries.len(), MAX_HIGH_SCORES, "List should still have max entries");
+    assert_eq!(high_scores.entries().len(), MAX_HIGH_SCORES, "List should still have max entries");
     
     // Test adding a score that doesn't qualify when the list is full
     let added = high_scores.add_score("BadPlayer".to_string(), min_score - 100);
@@ -610,8 +616,10 @@ fn test_i_piece_rotation_at_edge() {
     let mut i_piece = Tetromino::new(TetrominoType::I);
     
     // In initial orientation, I piece is horizontal (1×4)
-    assert_eq!(i_piece.shape.len(), 1, "I piece should start as 1×4");
-    assert_eq!(i_piece.shape[0].len(), 4, "I piece should start as 1×4");
+    // Use clone to get a copy we can work with
+    let shape_matrix = i_piece.shape.clone();
+    assert_eq!(shape_matrix.len(), 1, "I piece should start as 1×4");
+    assert_eq!(shape_matrix[0].len(), 4, "I piece should start as 1×4");
     
     // Position at the left edge
     i_piece.position.x = 0.0;
@@ -644,8 +652,9 @@ fn test_i_piece_rotation_at_edge() {
     
     // After wall kick, I piece should be rotated (now 4×1) and shifted right
     if let Some(ref piece) = game_state.current_piece {
-        assert_eq!(piece.shape.len(), 4, "I piece should be 4×1 after rotation");
-        assert_eq!(piece.shape[0].len(), 1, "I piece should be 4×1 after rotation");
+        let rotated_shape = piece.shape.clone();
+        assert_eq!(rotated_shape.len(), 4, "I piece should be 4×1 after rotation");
+        assert_eq!(rotated_shape[0].len(), 1, "I piece should be 4×1 after rotation");
         assert_eq!(piece.position.x, 2.0, "I piece should be shifted to x=2.0 after manual wall kick");
     } else {
         panic!("Current piece should exist");
@@ -751,9 +760,9 @@ fn test_high_score_transition_after_game_over() {
     assert!(added, "High score should be added successfully");
     
     // Verify score was added to high scores
-    assert_eq!(game_state.high_scores.entries.len(), 1, "Should have 1 high score entry");
-    assert_eq!(game_state.high_scores.entries[0].name, "TESTER", "High score entry should have correct name");
-    assert_eq!(game_state.high_scores.entries[0].score, 1000, "High score entry should have correct score");
+    assert_eq!(game_state.high_scores.entries().len(), 1, "Should have 1 high score entry");
+    assert_eq!(game_state.high_scores.entries()[0].name, "TESTER", "High score entry should have correct name");
+    assert_eq!(game_state.high_scores.entries()[0].score, 1000, "High score entry should have correct score");
 }
 
 // Test hard drop mechanics
@@ -828,42 +837,56 @@ fn test_l_piece_wall_kick() {
     
     // Create an L piece at the left edge
     let mut l_piece = Tetromino::new(TetrominoType::L);
-    l_piece.position.x = 0.0; // At the left edge
-    l_piece.position.y = 5.0;
     
-    // Store original shape for comparison
+    // Store original shape and dimensions for later comparison
     let original_shape = l_piece.shape.clone();
+    
+    // Position at the left edge
+    l_piece.position.x = 0.0;
+    l_piece.position.y = 5.0;
     
     game_state.current_piece = Some(l_piece);
     
-    // Manual wall kick implementation (rotate and move if needed)
+    if let Some(ref piece) = game_state.current_piece {
+        let shape_clone = piece.shape.clone();
+        println!("Initial L-piece dimensions: {}x{}", shape_clone.len(), shape_clone[0].len());
+    }
+    
+    // Implement wall kick by:
+    // 1. Get a mutable reference to the current piece
     let mut piece = game_state.current_piece.take().unwrap();
     
-    // Rotate the piece
+    // 2. Store original position
+    let original_x = piece.position.x;
+    
+    // 3. Rotate the piece
     piece.rotate();
     
-    // Check if rotation causes collision with left wall
+    // 4. Check for collision and adjust if needed
     if game_state.check_collision(&piece) {
-        // Apply wall kick by moving right (simplified to always move 1 unit right)
-        piece.position.x += 1.0;
+        // Wall kick - try moving right
+        piece.position.x = original_x + 1.0;
+        
+        // If still colliding, try moving right again
+        if game_state.check_collision(&piece) {
+            piece.position.x = original_x + 2.0;
+        }
     }
     
-    // Check if still colliding
-    if game_state.check_collision(&piece) {
-        // If still colliding, revert rotation but keep position change
-        // Clone original_shape to avoid moving it
-        piece.shape = original_shape.clone();
-    }
-    
-    // Update game state
+    // Update the game state with the kicked piece
     game_state.current_piece = Some(piece);
     
-    // Verify piece was rotated and moved 
+    // Verify the rotation and wall kick was successful
     if let Some(ref piece) = game_state.current_piece {
-        assert_ne!(piece.shape, original_shape, "L piece should have different shape after rotation");
-        // In our test implementation, the check_collision might not be triggering as expected
-        // So we're accepting the actual position
-        assert_eq!(piece.position.x, 0.0, "L piece position should remain at x=0.0 as it doesn't collide with the wall in test environment");
+        // Check shape has changed
+        let new_shape = piece.shape.clone();
+        assert_ne!(new_shape, original_shape, "L piece should have different shape after rotation");
+        
+        // Check position has changed due to wall kick
+        assert!(piece.position.x > 0.0, "L piece should have been kicked away from wall");
+        
+        // Check piece is not colliding
+        assert!(!game_state.check_collision(piece), "L piece should not be colliding after wall kick");
     } else {
         panic!("Current piece should exist");
     }
@@ -1065,7 +1088,8 @@ fn test_t_spin() {
         piece.rotate();
         
         // Check if rotation was successful
-        assert_ne!(piece.shape, original_rotation, "T piece should rotate in T-spin position");
+        let new_shape = piece.shape.clone();
+        assert_ne!(new_shape, original_rotation, "T piece should rotate in T-spin position");
         
         // Now check if the position is valid (no collision) using a clone to avoid borrow issues
         let piece_clone = piece.clone();
@@ -1159,7 +1183,8 @@ fn test_rotation_at_right_edge() {
     
     // Verify piece was rotated and ideally moved
     if let Some(ref piece) = game_state.current_piece {
-        assert_ne!(piece.shape, original_shape, "I piece should have different shape after rotation");
+        let new_shape = piece.shape.clone();
+        assert_ne!(new_shape, original_shape, "I piece should have different shape after rotation");
         // Due to the test environment, we're checking that piece position is valid after rotation
         assert!(!game_state.check_collision(piece), "I piece should be in valid position after rotation");
     } else {
@@ -1430,8 +1455,8 @@ fn test_name_input_interaction() {
     assert_eq!(game_state.screen, GameScreen::HighScores, "Should transition to high scores after submitting name");
     
     // Verify the high score was added
-    assert!(game_state.high_scores.entries.len() > 0, "High score list should have entries");
-    assert_eq!(game_state.high_scores.entries[0].score, 1000, "Score should be added with correct value");
+    assert!(game_state.high_scores.entries().len() > 0, "High score list should have entries");
+    assert_eq!(game_state.high_scores.entries()[0].score, 1000, "Score should be added with correct value");
 }
 
 // Test reset game state when starting a new game
@@ -1518,10 +1543,10 @@ fn test_high_score_display_format() {
     game_state.high_scores.add_score("PLAYER3".to_string(), 3000);
     
     // Verify order - highest scores should come first
-    assert_eq!(game_state.high_scores.entries[0].name, "PLAYER3", "Highest score should be first");
-    assert_eq!(game_state.high_scores.entries[0].score, 3000, "Highest score value should be correct");
-    assert_eq!(game_state.high_scores.entries[1].name, "PLAYER2", "Second highest score should be second");
-    assert_eq!(game_state.high_scores.entries[2].name, "PLAYER1", "Lowest score should be last");
+    assert_eq!(game_state.high_scores.entries()[0].name, "PLAYER3", "Highest score should be first");
+    assert_eq!(game_state.high_scores.entries()[0].score, 3000, "Highest score value should be correct");
+    assert_eq!(game_state.high_scores.entries()[1].name, "PLAYER2", "Second highest score should be second");
+    assert_eq!(game_state.high_scores.entries()[2].name, "PLAYER1", "Lowest score should be last");
     
     // Verify column positions are properly spaced
     let rank_x = SCREEN_WIDTH * 0.25;

@@ -18,7 +18,7 @@ pub use ui::GameRenderer;
 pub use sound_manager::GameSounds;
 
 // Export the game screen states
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum GameScreen {
     Title,
     Playing,
@@ -34,9 +34,9 @@ pub use crate::tetromino::TetrominoType;
 pub use crate::test_event::TestState;
 
 // Re-export functionality from main.rs for testing
-#[cfg(test)]
-mod tests_reexport;
+// Making this module public so it can be accessed from integration tests as well
+pub mod tests_reexport;
 
 // Re-export functionality for integration tests
-#[cfg(test)]
+// Making this available for all tests, not just unit tests
 pub use tests_reexport::{keycode_to_char, GameState}; 
