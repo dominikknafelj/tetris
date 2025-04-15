@@ -143,6 +143,11 @@ impl HighScores {
             true
         }
     }
+    
+    // Add entries() method to match the public API of the real HighScores
+    pub fn entries(&self) -> &[HighScoreEntry] {
+        &self.entries
+    }
 }
 
 // Simplified game sounds
