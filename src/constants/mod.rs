@@ -27,3 +27,11 @@ pub const SCORE_TETRIS: u32 = 800;    // Points for clearing 4 lines
 pub const SCORE_DROP: u32 = 1;        // Points per cell for dropping a piece
 pub const MAX_HIGH_SCORES: usize = 10; // Maximum number of high scores to store
 pub const HIGH_SCORES_FILE: &str = "high_scores.json";
+
+// Game timing constants
+pub const BLINK_TIME: f64 = 0.5;      // Time in seconds for UI blinking effects
+pub const CURSOR_BLINK_TIME: f64 = 0.3; // Time in seconds for text cursor blinking
+
+// Drop speed calculation helpers
+pub const BASE_DROP_TIME: f64 = 1.0;  // Base time between drops at level 1
+pub const MIN_DROP_TIME: f64 = 0.05;  // Minimum time between drops at max level

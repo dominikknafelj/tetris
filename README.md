@@ -1,6 +1,6 @@
 # Tetris
 
-A classic Tetris game implemented in Rust using the GGEZ game engine.
+A Rust implementation of the classic Tetris game using the ggez game framework.
 
 ## Features
 
@@ -30,26 +30,68 @@ cd tetris
 pip install pillow scipy
 ```
 
-## Building
+## Project Structure
 
-### Development Build
+The project follows a modular organization:
+
+```
+tetris/
+├── src/                  # Source code
+│   ├── board/            # Game board implementation
+│   ├── constants/        # Game constants
+│   ├── score/            # Score tracking
+│   ├── sound/            # Sound manager
+│   ├── tetromino/        # Tetromino pieces
+│   ├── ui/               # User interface rendering
+│   ├── lib.rs            # Library exports
+│   └── main.rs           # Entry point
+├── resources/            # Game resources
+│   ├── audio/            # Sound files
+│   │   ├── background.wav  # Background music
+│   │   ├── clear.wav       # Line clear sound
+│   │   ├── drop.wav        # Piece drop sound
+│   │   ├── game_over.wav   # Game over sound
+│   │   ├── lock.wav        # Piece lock sound
+│   │   ├── move.wav        # Piece movement sound
+│   │   ├── rotate.wav      # Piece rotation sound
+│   │   └── tetris.wav      # Tetris clear sound
+│   └── images/           # Image files
+│       └── icon_*.png      # Game icons
+└── tests/                # Integration tests
+```
+
+## Resources Organization
+
+All game resources are stored in the `resources` directory:
+
+- **Audio files**: All sound effects and music are stored in `resources/audio/`
+- **Image files**: All images and icons are stored in `resources/images/`
+
+## Building and Running
+
 ```bash
+# Build the project
+cargo build
+
+# Run the game
 cargo run
+
+# Run the tests
+cargo test
 ```
 
-### Release Build (macOS)
-```bash
-./build_mac.sh
-```
+## Sound Files
 
-Options:
-- `--clean`: Clean build artifacts before building
-- `--help`: Show help message
+The game requires the following sound files:
 
-### Cleaning Build Artifacts
-```bash
-./clean.sh
-```
+- `background.wav` - Background music
+- `clear.wav` - Sound when clearing lines
+- `drop.wav` - Sound when dropping a piece
+- `game_over.wav` - Sound when game over
+- `lock.wav` - Sound when locking a piece
+- `move.wav` - Sound when moving a piece
+- `rotate.wav` - Sound when rotating a piece
+- `tetris.wav` - Sound when clearing 4 lines (Tetris)
 
 ## Controls
 
@@ -60,23 +102,6 @@ Options:
 - M: Toggle music
 - P: Pause game
 - ESC: Quit game
-
-## Project Structure
-
-```
-tetris/
-├── src/
-│   ├── main.rs          # Main game logic
-│   ├── tetromino.rs     # Tetromino piece implementation
-│   └── sound_tests.rs   # Sound system tests
-├── sounds/              # Generated sound effects
-├── icons/              # Generated application icons
-├── build_mac.sh        # macOS build script
-├── clean.sh           # Cleanup script
-├── generate_sounds.py # Sound generation script
-├── generate_icon.py   # Icon generation script
-└── create_icns.sh     # macOS icon creation script
-```
 
 ## Version History
 
